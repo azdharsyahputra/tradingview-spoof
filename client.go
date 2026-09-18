@@ -1,6 +1,7 @@
 package tvspoof
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -36,6 +37,7 @@ type Client struct {
 
 	// Callbacks — set these before calling Connect().
 	OnQuote OnQuoteFunc
+	OnBar   OnBarFunc
 	OnError OnErrorFunc
 
 	// Configuration
@@ -44,10 +46,11 @@ type Client struct {
 	quoteFields []string
 
 	// State management
-	symbols []string // subscribed symbols (preserved for reconnect)
-	done    chan struct{}
-	closed  bool
-	mu      sync.Mutex // protects internal state
+	symbols          []string // subscribed symbols (preserved for reconnect)
+	barSubscriptions []barSubscription
+	done             chan struct{}
+	closed           bool
+	mu               sync.Mutex // protects internal state
 
 	// Reconnect configuration
 	autoReconnect    bool
@@ -129,6 +132,43 @@ func (c *Client) RemoveSymbol(symbol string) {
 	c.safeSend(payload)
 }
 
+// SubscribeBars subscribes to chart OHLCV updates for one symbol and
+// resolution. Each update replaces the active candle or begins the next one.
+// The subscription automatically reconnects with the Client.
+func (c *Client) SubscribeBars(symbol string, interval string) error {
+	symbol = strings.TrimSpace(symbol)
+	interval = strings.TrimSpace(interval)
+	if symbol == "" {
+		return fmt.Errorf("symbol is required")
+	}
+	if interval == "" {
+		return fmt.Errorf("interval is required")
+	}
+
+	c.mu.Lock()
+	for _, subscription := range c.barSubscriptions {
+		if subscription.symbol == symbol && subscription.interval == interval {
+			c.mu.Unlock()
+			return nil
+		}
+	}
+	subscription := barSubscription{
+		symbol:    symbol,
+		interval:  interval,
+		sessionID: generateSessionID("cs_"),
+	}
+	c.barSubscriptions = append(c.barSubscriptions, subscription)
+	c.mu.Unlock()
+
+	c.connMu.Lock()
+	connected := c.conn != nil
+	c.connMu.Unlock()
+	if !connected {
+		return nil
+	}
+	return c.startBarSubscription(subscription)
+}
+
 // Close gracefully shuts down the connection.
 //
 // After Close is called, auto-reconnect is disabled. To reconnect,
@@ -156,7 +196,7 @@ func (c *Client) Close() error {
 
 func (c *Client) dial() error {
 	dialer := websocket.Dialer{
-		NetDialTLSContext:  customUTLSDialer,
+		NetDialTLSContext: customUTLSDialer,
 		EnableCompression: true,
 	}
 
@@ -201,6 +241,7 @@ func (c *Client) dial() error {
 	for _, sym := range symbols {
 		c.sendAddSymbol(sym)
 	}
+	c.resubscribeBars()
 
 	return nil
 }
@@ -208,6 +249,50 @@ func (c *Client) dial() error {
 func (c *Client) sendAddSymbol(symbol string) {
 	payload := fmt.Sprintf(`{"m":"quote_add_symbols","p":["%s","%s"]}`, c.sessionID, symbol)
 	c.safeSend(payload)
+}
+
+func (c *Client) resubscribeBars() {
+	c.mu.Lock()
+	subscriptions := make([]barSubscription, len(c.barSubscriptions))
+	for index, subscription := range c.barSubscriptions {
+		subscription.sessionID = generateSessionID("cs_")
+		c.barSubscriptions[index].sessionID = subscription.sessionID
+		subscriptions[index] = subscription
+	}
+	c.mu.Unlock()
+
+	for _, subscription := range subscriptions {
+		if err := c.startBarSubscription(subscription); err != nil && c.OnError != nil {
+			c.OnError(err)
+		}
+	}
+}
+
+func (c *Client) startBarSubscription(subscription barSubscription) error {
+	resolve := fmt.Sprintf("={\"symbol\":%q,\"adjustment\":\"splits\",\"session\":\"extended\"}", subscription.symbol)
+	commands := []struct {
+		method string
+		params []interface{}
+	}{
+		{"chart_create_session", []interface{}{subscription.sessionID, ""}},
+		{"switch_timezone", []interface{}{subscription.sessionID, "Etc/UTC"}},
+		{"resolve_symbol", []interface{}{subscription.sessionID, "symbol_1", resolve}},
+		{"create_series", []interface{}{subscription.sessionID, "s1", "s1", "symbol_1", subscription.interval, 2}},
+	}
+	for _, command := range commands {
+		if err := c.sendCommand(command.method, command.params...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) sendCommand(method string, params ...interface{}) error {
+	payload, err := json.Marshal(map[string]interface{}{"m": method, "p": params})
+	if err != nil {
+		return err
+	}
+	return c.safeSend(string(payload))
 }
 
 // safeSend wraps a JSON payload with Engine.IO framing and sends it thread-safely.

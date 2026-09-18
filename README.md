@@ -8,6 +8,9 @@ This Go library connects to TradingView's live data stream using **uTLS** to spo
 
 - **TLS Fingerprint Spoofing** — Uses [uTLS](https://github.com/refraction-networking/utls) with `HelloChrome_Auto` to mimic a real Chrome browser
 - **Real-time Quotes** — Price, Volume, Bid, Ask, OHLC, Change, Change%
+- **Historical OHLCV** — Recent candles through TradingView's chart session protocol
+- **Live OHLCV bars** — Streaming updates for the active candle
+- **ForexFactory Calendar** — Weekly economic events through the linked JSON export
 - **Auto-reconnect** — Exponential backoff with automatic symbol re-subscription
 - **Heartbeat Management** — Automatic ping/pong to keep the connection alive
 - **Thread-safe** — All write operations are mutex-protected
@@ -99,6 +102,62 @@ client := tvspoof.NewClient(
 | `ChangePercent` | `chp` | Percentage change |
 
 > **Note:** TradingView sends partial updates. Fields that didn't change will be `nil`.
+
+## Historical candles
+
+`GetHistory` opens a separate short-lived chart session and returns normalized
+OHLCV bars. It supports TradingView resolutions such as `1`, `15`, `60`, `240`,
+`D`, `W`, and `M`:
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+defer cancel()
+
+client := tvspoof.NewClient()
+bars, err := client.GetHistory(ctx, "OANDA:XAUUSD", "15", 500)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("loaded %d candles; latest close %.2f\n", len(bars), bars[len(bars)-1].Close)
+```
+
+Historical requests use the same Chrome-fingerprint uTLS dialer as live
+quotes, but do not reuse or interrupt the quote session.
+
+## Local API + Next.js view
+
+Run the local HTTP/WebSocket bridge:
+
+```bash
+go run ./cmd/server
+```
+
+Endpoints:
+
+- `GET /api/history?symbol=OANDA:XAUUSD&interval=15&bars=500` — historical OHLCV
+- `GET /api/calendar?date=today&currency=USD&limit=20` — today's cached ForexFactory economic calendar (`date` also accepts `YYYY-MM-DD`)
+- `WS /ws/quotes?symbol=OANDA:XAUUSD` — realtime quote stream
+- `WS /ws/bars?symbol=OANDA:XAUUSD&interval=15` — realtime OHLCV bar stream
+- `GET /api/health` — health check
+
+Then run the dashboard:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. The view loads historical candles through the
+REST endpoint, updates the active candle from the bar WebSocket, and shows
+related ForexFactory events for the current day in the market panel.
+
+The `SOL` chart indicator marks BUY/SELL setups from a sweep and reclaim of
+the prior 10-bar range or a strong close through that range. Its breakout
+filter uses EMA 8/21 and ATR 14; it applies a seven-bar cooldown. Signals are
+calculated only from completed candles. The drawer shows the signal's close
+price, invalidation level, and a 1.5R reference, all in chart price units.
+SOL is an experimental chart aid, not a guarantee that a trade will work.
 
 ## Symbol Format
 

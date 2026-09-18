@@ -10,10 +10,16 @@
 
 # Output
 *.out
+.next/
+web/.next/
+node_modules/
+*.tsbuildinfo
 
 # IDE
 .idea/
 .vscode/
+.codex/
+.codex-local/
 *.swp
 *.swo
 *~

@@ -43,8 +43,25 @@ type QuoteUpdate struct {
 // OnQuoteFunc is the callback signature for receiving market data updates.
 type OnQuoteFunc func(update QuoteUpdate)
 
+// BarUpdate is a replacement/update for the latest OHLCV candle of a chart
+// subscription. Time is the start of the candle in Unix seconds.
+type BarUpdate struct {
+	Symbol   string
+	Interval string
+	Bar      Bar
+}
+
+// OnBarFunc receives full OHLCV updates from an active chart series.
+type OnBarFunc func(update BarUpdate)
+
 // OnErrorFunc is the callback signature for receiving error notifications.
 type OnErrorFunc func(err error)
+
+type barSubscription struct {
+	symbol    string
+	interval  string
+	sessionID string
+}
 
 // tvMessage represents the top-level JSON frame from TradingView's WebSocket protocol.
 type tvMessage struct {

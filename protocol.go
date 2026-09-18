@@ -45,7 +45,7 @@ func (c *Client) processPayload(jsonStr string) {
 	}
 
 	// 3. Handle server-side errors
-	if msg.M == "critical_error" || msg.M == "error" {
+	if msg.M == "critical_error" || msg.M == "error" || msg.M == "series_error" || msg.M == "protocol_error" {
 		errMsg := fmt.Sprintf("tradingview server %s: %v", msg.M, msg.P)
 		log.Printf("[tvspoof] %s", errMsg)
 		if c.OnError != nil {
@@ -54,7 +54,13 @@ func (c *Client) processPayload(jsonStr string) {
 		return
 	}
 
-	// 4. Extract quote data from "qsd" (Quote Session Data) messages
+	// 4. Extract complete OHLCV updates from active chart subscriptions.
+	if msg.M == "timescale_update" || msg.M == "du" {
+		c.processBarPayload(msg.P)
+		return
+	}
+
+	// 5. Extract quote data from "qsd" (Quote Session Data) messages.
 	if msg.M != "qsd" || len(msg.P) < 2 {
 		return
 	}
@@ -89,6 +95,42 @@ func (c *Client) processPayload(jsonStr string) {
 
 	if c.OnQuote != nil {
 		c.OnQuote(update)
+	}
+}
+
+func (c *Client) processBarPayload(payload []interface{}) {
+	if len(payload) < 2 {
+		return
+	}
+	sessionID, ok := payload[0].(string)
+	if !ok {
+		return
+	}
+	c.mu.Lock()
+	var subscription barSubscription
+	found := false
+	for _, candidate := range c.barSubscriptions {
+		if candidate.sessionID == sessionID {
+			subscription = candidate
+			found = true
+			break
+		}
+	}
+	c.mu.Unlock()
+	if !found {
+		return
+	}
+
+	received := make(map[int64]Bar)
+	extractHistoryBars(payload, received)
+	for _, bar := range sortedBars(received) {
+		if c.OnBar != nil {
+			c.OnBar(BarUpdate{
+				Symbol:   subscription.symbol,
+				Interval: subscription.interval,
+				Bar:      bar,
+			})
+		}
 	}
 }
 
