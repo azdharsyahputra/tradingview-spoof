@@ -1,29 +1,74 @@
-# tradingview-spoof
+# 🏛️ ZTERM — Institutional Quant Trading Desk & TradingView Engine
 
-Real-time market data from TradingView's WebSocket — without getting blocked.
+High-performance market data engine, quantitative analytics suite, and **AI Hedge Fund Research Desk** in Go.
 
-This Go library connects to TradingView's live data stream using **uTLS** to spoof a Chrome TLS fingerprint, bypassing Cloudflare's WAF and TLS fingerprint detection.
+`zterm` connects directly to TradingView's WebSocket feed using **uTLS Chrome fingerprint spoofing** to bypass Cloudflare WAF/TLS fingerprint detection, while providing an institutional-grade quantitative analysis engine (Intermarket Macro Radar, Volume Profile VPVR, Session Liquidity Tracking, SMC, and Dynamic Risk Position Sizing).
 
-## Features
+---
 
-- **TLS Fingerprint Spoofing** — Uses [uTLS](https://github.com/refraction-networking/utls) with `HelloChrome_Auto` to mimic a real Chrome browser
-- **Real-time Quotes** — Price, Volume, Bid, Ask, OHLC, Change, Change%
-- **Historical OHLCV** — Recent candles through TradingView's chart session protocol
-- **Live OHLCV bars** — Streaming updates for the active candle
-- **ForexFactory Calendar** — Weekly economic events through the linked JSON export
-- **Auto-reconnect** — Exponential backoff with automatic symbol re-subscription
-- **Heartbeat Management** — Automatic ping/pong to keep the connection alive
-- **Thread-safe** — All write operations are mutex-protected
-- **Zero Configuration** — Works out of the box with sensible defaults
-- **Functional Options** — Clean, extensible configuration pattern
+## 🚀 Key Features
 
-## Installation
+* **uTLS Chrome Fingerprint Spoofing** — Mimics real Chrome TLS handshakes (`HelloChrome_Auto`) for unblockable WebSocket & chart session connections.
+* **🏛️ Executive Prop Desk Briefing (`cmd/desk`)** — Institutional-grade multi-asset quantitative briefing with macro radar, volume profile, liquidity maps, and actionable trade playbooks.
+* **⚡ Live Terminal Monitor (`cmd/thick`)** — Pixel-perfect Box Drawing terminal dashboard streaming real-time ticks, bid/ask spreads, OHLCV candle tables, and sparklines.
+* **🌐 Intermarket Macro Radar** — Parallel cross-asset feeds tracking US Dollar Index (`DXY`), 10-Year Treasury Yield (`US10Y`), S&P 500 (`SPX`), and Silver (`XAGUSD`).
+* **📊 Auction Theory & Volume Profile (VPVR)** — Real-time Point of Control (`POC`), Value Area High (`VAH`), Value Area Low (`VAL`), and volume distribution histograms.
+* **🎯 Session Liquidity Tracker** — Automatic detection of Asian Range High/Low, London Open sweeps (*Judas Swings*), and Previous Day High/Low (`PDH`/`PDL`).
+* **🧠 Smart Money Concepts (SMC)** — Automated Market Structure Shift (`MSS`), Fair Value Gaps (`FVG`), and Premium vs. Discount pricing zones.
+* **🛡️ Quantitative Risk Engine** — Volatility-adjusted (ATR) Stop Loss, Kelly Criterion position sizing, Expected Value (`+EV`), and Conviction Scoring (`A+`, `A`, `B+`, `B`, `C`).
+* **📅 Economic Calendar Integration** — Real-time cached ForexFactory high/medium impact catalyst calendar.
+* **🔌 REST & WebSocket API Server (`cmd/server`)** — Fast HTTP/WebSocket bridge with Next.js web interface.
+
+---
+
+## 🛠️ CLI Tools & Executables ("Kaki Tangan AI Desk")
+
+### 1. Institutional Desk Briefing (`cmd/desk`)
+Generates an instant quantitative research briefing and trade playbook:
 
 ```bash
-go get github.com/azdharsyahputra/tradingview-spoof
+# Default briefing for Gold ($10,000 balance, 1% risk)
+go run ./cmd/desk xauusd
+
+# Customized portfolio balance and risk budget
+go run ./cmd/desk xauusd 50000 1.5
+
+# Multi-asset support (Crypto, Forex, Indices, Equities)
+go run ./cmd/desk btc 25000 2.0
+go run ./cmd/desk eurusd
 ```
 
-## Quick Start
+### 2. Live Terminal Tick & OHLCV Monitor (`cmd/thick`)
+Interactive live streaming terminal dashboard:
+
+```bash
+# Stream Gold on 15-minute timeframe
+go run ./cmd/thick xauusd 15
+
+# Stream Bitcoin on 5-minute timeframe
+go run ./cmd/thick btc 5
+```
+
+### 3. REST & WebSocket API Server (`cmd/server`)
+Launches the HTTP/WebSocket bridge on `http://127.0.0.1:8080`:
+
+```bash
+go run ./cmd/server
+```
+
+**Available Endpoints:**
+* `GET /api/desk?symbol=OANDA:XAUUSD&balance=10000&risk=1.0` — Full JSON Desk Briefing.
+* `GET /api/history?symbol=OANDA:XAUUSD&interval=15&bars=500` — Historical OHLCV candles.
+* `GET /api/calendar?date=today&currency=USD&limit=20` — Cached ForexFactory economic calendar.
+* `GET /api/symbols?q=gold` — Search TradingView symbols.
+* `WS /ws/quotes?symbol=OANDA:XAUUSD` — Real-time quote stream (Bid, Ask, Spread, Change).
+* `WS /ws/bars?symbol=OANDA:XAUUSD&interval=15` — Real-time active bar update stream.
+
+---
+
+## 💻 Go Library Usage
+
+### Real-Time Quotes
 
 ```go
 package main
@@ -40,12 +85,9 @@ func main() {
 
     client.OnQuote = func(update tvspoof.QuoteUpdate) {
         if update.Price != nil {
-            fmt.Printf("%s: %.2f\n", update.Symbol, *update.Price)
+            fmt.Printf("%s: %.2f (Bid: %.2f / Ask: %.2f)\n", 
+                update.Symbol, *update.Price, *update.Bid, *update.Ask)
         }
-    }
-
-    client.OnError = func(err error) {
-        log.Printf("Error: %v", err)
     }
 
     if err := client.Connect(); err != nil {
@@ -54,140 +96,74 @@ func main() {
 
     client.AddSymbol("OANDA:XAUUSD")
     client.AddSymbol("BINANCE:BTCUSDT")
-    client.AddSymbol("NASDAQ:AAPL")
 
-    // Block forever
-    select {}
+    select {} // Block
 }
 ```
 
-## Configuration
-
-Use functional options to customize the client:
+### Quantitative Desk Analysis
 
 ```go
-client := tvspoof.NewClient(
-    tvspoof.WithAutoReconnect(true),
-    tvspoof.WithReconnectDelay(5 * time.Second),
-    tvspoof.WithMaxReconnectWait(2 * time.Minute),
-    tvspoof.WithOrigin("https://id.tradingview.com"),
-    tvspoof.WithQuoteFields([]string{"lp", "volume", "bid", "ask"}),
+package main
+
+import (
+    "context"
+    "fmt"
+    "time"
+
+    tvspoof "github.com/azdharsyahputra/tradingview-spoof"
 )
-```
 
-### Available Options
+func main() {
+    client := tvspoof.NewClient()
+    ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+    defer cancel()
 
-| Option | Default | Description |
-| :--- | :--- | :--- |
-| `WithAutoReconnect(bool)` | `true` | Auto-reconnect on disconnect |
-| `WithReconnectDelay(duration)` | `3s` | Initial reconnect delay |
-| `WithMaxReconnectWait(duration)` | `60s` | Max reconnect backoff |
-| `WithOrigin(string)` | `https://www.tradingview.com` | HTTP Origin header |
-| `WithUserAgent(string)` | Chrome 148 on Windows | User-Agent header |
-| `WithQuoteFields([]string)` | All fields | Data fields to subscribe |
+    // Analyze XAUUSD with $25,000 balance and 1.5% risk
+    briefing, err := client.AnalyzeDesk(ctx, "OANDA:XAUUSD", 25000.0, 1.5)
+    if err != nil {
+        log.Fatal(err)
+    }
 
-## QuoteUpdate Fields
-
-| Field | TradingView Key | Description |
-| :--- | :--- | :--- |
-| `Price` | `lp` | Last traded price |
-| `Volume` | `volume` | Current volume |
-| `Bid` | `bid` | Best bid price |
-| `Ask` | `ask` | Best ask price |
-| `Open` | `open_price` | Session open price |
-| `High` | `high_price` | Session high |
-| `Low` | `low_price` | Session low |
-| `PrevClose` | `prev_close_price` | Previous session close |
-| `Change` | `ch` | Absolute price change |
-| `ChangePercent` | `chp` | Percentage change |
-
-> **Note:** TradingView sends partial updates. Fields that didn't change will be `nil`.
-
-## Historical candles
-
-`GetHistory` opens a separate short-lived chart session and returns normalized
-OHLCV bars. It supports TradingView resolutions such as `1`, `15`, `60`, `240`,
-`D`, `W`, and `M`:
-
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-defer cancel()
-
-client := tvspoof.NewClient()
-bars, err := client.GetHistory(ctx, "OANDA:XAUUSD", "15", 500)
-if err != nil {
-    log.Fatal(err)
+    fmt.Printf("Executive Bias: %s (Conviction: %d%% | Grade: %s)\n",
+        briefing.ExecutiveBias, briefing.ConvictionScore, briefing.ConvictionGrade)
+    fmt.Printf("Macro Regime: %s\n", briefing.Intermarket.MacroRegime)
+    fmt.Printf("POC: %.2f | VAH: %.2f | VAL: %.2f\n", 
+        briefing.VolumeProfile.POC, briefing.VolumeProfile.VAH, briefing.VolumeProfile.VAL)
+    fmt.Printf("Playbook: Entry: %.2f | SL: %.2f | TP1: %.2f | TP2: %.2f | Size: %.2f Lots\n",
+        briefing.Playbook.EntryPrice, briefing.Playbook.InvalidationPrice,
+        briefing.Playbook.Target1Price, briefing.Playbook.Target2Price, briefing.Playbook.RecommendedLots)
 }
-fmt.Printf("loaded %d candles; latest close %.2f\n", len(bars), bars[len(bars)-1].Close)
 ```
 
-Historical requests use the same Chrome-fingerprint uTLS dialer as live
-quotes, but do not reuse or interrupt the quote session.
+---
 
-## Local API + Next.js view
+## 🤖 AI Assistant Standard Operating Procedure (SOP)
 
-Run the local HTTP/WebSocket bridge:
+When an AI coding agent or assistant (`agy` / Antigravity) opens this workspace, it acts as an **Institutional Prop Desk Quant**.
 
-```bash
-go run ./cmd/server
-```
+Whenever asked for market insights or price predictions:
+1. **Execute Desk Analytics**: Automatically runs `go run ./cmd/desk [symbol]` to fetch live data.
+2. **Synthesize 4 Pillars**:
+   * *Macro Backdrop* (DXY, Yields, Cross-Asset Tailwind/Headwind).
+   * *Auction Mechanics* (Volume Profile POC, VAH, VAL).
+   * *Session Liquidity* (Asia/London High/Low sweeps).
+   * *SMC Zone* (Discount/Premium, Fair Value Gaps).
+3. **Formulate High-Conviction Playbook**: Provides exact Entry, Invalidation (SL), Targets (TP1/TP2), Risk-Reward Ratio (RRR), and Position Sizing.
 
-Endpoints:
+---
 
-- `GET /api/history?symbol=OANDA:XAUUSD&interval=15&bars=500` — historical OHLCV
-- `GET /api/calendar?date=today&currency=USD&limit=20` — today's cached ForexFactory economic calendar (`date` also accepts `YYYY-MM-DD`)
-- `WS /ws/quotes?symbol=OANDA:XAUUSD` — realtime quote stream
-- `WS /ws/bars?symbol=OANDA:XAUUSD&interval=15` — realtime OHLCV bar stream
-- `GET /api/health` — health check
-
-Then run the dashboard:
+## 🌐 Next.js Web Dashboard
 
 ```bash
 cd web
 npm install
 npm run dev
 ```
+Open `http://localhost:3000` to access the interactive chart, CISD/SOL model visualizers, and market catalyst panels.
 
-Open `http://localhost:3000`. The view loads historical candles through the
-REST endpoint, updates the active candle from the bar WebSocket, and shows
-related ForexFactory events for the current day in the market panel.
+---
 
-The `SOL` chart indicator marks BUY/SELL setups from a sweep and reclaim of
-the prior 10-bar range or a strong close through that range. Its breakout
-filter uses EMA 8/21 and ATR 14; it applies a seven-bar cooldown. Signals are
-calculated only from completed candles. The drawer shows the signal's close
-price, invalidation level, and a 1.5R reference, all in chart price units.
-SOL is an experimental chart aid, not a guarantee that a trade will work.
+## 📜 License
 
-## Symbol Format
-
-Symbols use the `EXCHANGE:TICKER` format:
-
-| Category | Examples |
-| :--- | :--- |
-| Forex | `OANDA:XAUUSD`, `FX:EURUSD`, `OANDA:GBPUSD` |
-| Crypto | `BINANCE:BTCUSDT`, `COINBASE:ETHUSD`, `BITSTAMP:BTCUSD` |
-| Stocks | `NASDAQ:AAPL`, `NYSE:TSLA`, `NASDAQ:NVDA` |
-| Indices | `TVC:SPX`, `TVC:DXY`, `FOREXCOM:NAS100` |
-| Commodities | `TVC:GOLD`, `TVC:SILVER`, `NYMEX:CL1!` |
-
-## How It Works
-
-```
-┌─────────────┐     TCP + uTLS (Chrome)     ┌──────────────────┐
-│  Your App   │ ──────────────────────────▶  │   TradingView    │
-│             │     WSS (Engine.IO)          │   Data Server    │
-│  OnQuote()  │ ◀──────────────────────────  │                  │
-└─────────────┘    ~m~LEN~m~{JSON}           └──────────────────┘
-```
-
-1. **TCP Connection** — Raw TCP dial to `data.tradingview.com:443`
-2. **TLS Handshake** — uTLS spoofs Chrome's ClientHello fingerprint
-3. **WebSocket Upgrade** — Standard HTTP upgrade with browser-like headers
-4. **Session Init** — Auth token → Create session → Set fields
-5. **Data Stream** — Subscribe to symbols → Receive real-time quotes
-6. **Heartbeat** — Auto-echo `~h~N` pings to stay alive
-
-## License
-
-MIT
+MIT License.

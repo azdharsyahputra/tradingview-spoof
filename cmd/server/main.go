@@ -31,6 +31,8 @@ func main() {
 	mux.HandleFunc("/api/history", history)
 	mux.HandleFunc("/api/symbols", symbols)
 	mux.HandleFunc("/api/calendar", calendar)
+	mux.HandleFunc("/api/desk", desk)
+	mux.HandleFunc("/api/plans", tradePlansHandler)
 	mux.HandleFunc("/ws/quotes", quotes)
 	mux.HandleFunc("/ws/bars", barsStream)
 
@@ -104,6 +106,68 @@ func symbols(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": data})
+}
+
+func desk(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	symbol := q.Get("symbol")
+	if symbol == "" {
+		symbol = "OANDA:XAUUSD"
+	}
+	balance := 10000.0
+	if val := q.Get("balance"); val != "" {
+		if b, err := strconv.ParseFloat(val, 64); err == nil && b > 0 {
+			balance = b
+		}
+	}
+	risk := 1.0
+	if val := q.Get("risk"); val != "" {
+		if rk, err := strconv.ParseFloat(val, 64); err == nil && rk > 0 {
+			risk = rk
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	client := tvspoof.NewClient()
+	briefing, err := client.AnalyzeDesk(ctx, symbol, balance, risk)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "briefing": briefing})
+}
+
+func tradePlansHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		plans, err := tvspoof.LoadTradePlans("")
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "plans": plans, "count": len(plans)})
+
+	case http.MethodPost:
+		var plan tvspoof.TradePlan
+		if err := json.NewDecoder(r.Body).Decode(&plan); err != nil {
+			http.Error(w, "invalid request body JSON", http.StatusBadRequest)
+			return
+		}
+		if plan.Symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
+			return
+		}
+		if err := tvspoof.UpsertTradePlan("", plan); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "trade plan saved", "plan": plan})
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 var forexFactoryCalendarCache struct {
