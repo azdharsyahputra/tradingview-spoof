@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/signal"
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	tvspoof "github.com/azdharsyahputra/tradingview-spoof"
 )
 
@@ -54,29 +53,187 @@ type MarketState struct {
 	prevClose     *float64
 	lastTickTime  time.Time
 	tickCount     int
-	statusMsg     string
-	precision     int
+
+	statusMsg string
+	precision int
+}
+
+// Bubble Tea Messages
+type quoteMsg tvspoof.QuoteUpdate
+type barMsg tvspoof.BarUpdate
+type historyLoadedMsg struct {
+	bars []tvspoof.Bar
+	err  error
+}
+type statusMsg string
+type tickTimerMsg time.Time
+
+type model struct {
+	symbol    string
+	interval  string
+	reqBars   int
+	width     int
+	height    int
+	state     *MarketState
+	client    *tvspoof.Client
+	plans     []tvspoof.TradePlan
+}
+
+func (m model) Init() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return tickTimerMsg(t)
+	})
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c", "esc":
+			if m.client != nil {
+				m.client.Close()
+			}
+			return m, tea.Quit
+		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
+	case quoteMsg:
+		q := tvspoof.QuoteUpdate(msg)
+		if q.Symbol == m.symbol {
+			m.state.mu.Lock()
+			if q.Price != nil {
+				m.state.lastPrice = q.Price
+				m.state.precision = determinePrecision(m.symbol, *q.Price)
+			}
+			if q.Bid != nil {
+				m.state.bid = q.Bid
+			}
+			if q.Ask != nil {
+				m.state.ask = q.Ask
+			}
+			if q.Change != nil {
+				m.state.change = q.Change
+			}
+			if q.ChangePercent != nil {
+				m.state.changePercent = q.ChangePercent
+			}
+			if q.Volume != nil {
+				m.state.volume = q.Volume
+			}
+			if q.Open != nil {
+				m.state.open = q.Open
+			}
+			if q.High != nil {
+				m.state.high = q.High
+			}
+			if q.Low != nil {
+				m.state.low = q.Low
+			}
+			if q.PrevClose != nil {
+				m.state.prevClose = q.PrevClose
+			}
+			m.state.lastTickTime = time.Now()
+			m.state.tickCount++
+			m.state.mu.Unlock()
+		}
+		return m, nil
+
+	case barMsg:
+		update := tvspoof.BarUpdate(msg)
+		if update.Symbol == m.symbol && update.Interval == m.interval {
+			m.state.mu.Lock()
+			m.state.activeBar = update.Bar
+			m.state.hasActiveBar = true
+
+			if m.state.lastPrice == nil {
+				m.state.precision = determinePrecision(m.symbol, update.Bar.Close)
+			}
+
+			if len(m.state.historyBars) > 0 {
+				lastIdx := len(m.state.historyBars) - 1
+				if m.state.historyBars[lastIdx].Time == update.Bar.Time {
+					m.state.historyBars[lastIdx] = update.Bar
+				} else if update.Bar.Time > m.state.historyBars[lastIdx].Time {
+					m.state.historyBars = append(m.state.historyBars, update.Bar)
+					if len(m.state.historyBars) > m.reqBars+10 {
+						m.state.historyBars = m.state.historyBars[len(m.state.historyBars)-(m.reqBars+10):]
+					}
+				}
+			} else {
+				m.state.historyBars = append(m.state.historyBars, update.Bar)
+			}
+			m.state.mu.Unlock()
+		}
+		return m, nil
+
+	case historyLoadedMsg:
+		m.state.mu.Lock()
+		if msg.err != nil {
+			m.state.statusMsg = fmt.Sprintf("Histori gagal: %v (menunggu live stream...)", msg.err)
+		} else {
+			m.state.historyBars = msg.bars
+			if len(msg.bars) > 0 {
+				m.state.activeBar = msg.bars[len(msg.bars)-1]
+				m.state.hasActiveBar = true
+				if m.state.lastPrice == nil {
+					m.state.precision = determinePrecision(m.symbol, msg.bars[len(msg.bars)-1].Close)
+				}
+			}
+			m.state.statusMsg = "Terhubung ke TradingView live stream"
+		}
+		m.state.mu.Unlock()
+		return m, nil
+
+	case statusMsg:
+		m.state.mu.Lock()
+		m.state.statusMsg = string(msg)
+		m.state.mu.Unlock()
+		return m, nil
+
+	case tickTimerMsg:
+		plans, _ := tvspoof.LoadTradePlans("")
+		m.plans = plans
+		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg {
+			return tickTimerMsg(t)
+		})
+	}
+
+	return m, nil
+}
+
+func (m model) View() string {
+	actualBars := m.reqBars
+	if m.height > 0 {
+		plansLines := 0
+		if len(m.plans) > 0 {
+			plansLines = 6 + len(m.plans)*2
+		}
+		fixedLines := 8 + plansLines + 5 + 3 + 3
+		avail := m.height - fixedLines
+		if avail < 3 {
+			avail = 3
+		}
+		if avail < actualBars {
+			actualBars = avail
+		}
+	}
+	return renderDashboardString(m.state, actualBars, m.plans)
 }
 
 func main() {
-	symbolFlag := flag.String("symbol", "", "TradingView symbol (e.g., xauusd, btc, FX:EURUSD)")
-	intervalFlag := flag.String("interval", "", "Timeframe resolution (1, 5, 15, 30, 60, 240, D, W)")
+	symbolFlag := flag.String("symbol", "OANDA:XAUUSD", "TradingView symbol (e.g., xauusd, btc, FX:EURUSD)")
+	intervalFlag := flag.String("interval", "15", "Timeframe resolution (1, 5, 15, 30, 60, 240, D, W)")
 	barsFlag := flag.Int("bars", 12, "Number of OHLCV candles to display (5 - 30)")
-	noClearFlag := flag.Bool("no-clear", false, "Do not clear terminal on update")
+	noClearFlag := flag.Bool("no-clear", false, "Do not use alternate screen buffer")
 	flag.Parse()
 
-	symbol := "OANDA:XAUUSD"
-	interval := "15"
+	symbol := normalizeSymbol(*symbolFlag)
+	interval := *intervalFlag
 
-	// Check flags first
-	if *symbolFlag != "" {
-		symbol = normalizeSymbol(*symbolFlag)
-	}
-	if *intervalFlag != "" {
-		interval = strings.TrimSpace(*intervalFlag)
-	}
-
-	// Check positional arguments (e.g. `go run ./cmd/thick xauusd 5` or `go run ./cmd/thick 5`)
 	args := flag.Args()
 	if len(args) == 1 {
 		arg := strings.TrimSpace(args[0])
@@ -112,107 +269,50 @@ func main() {
 		tvspoof.WithReconnectDelay(3*time.Second),
 	)
 
+	plans, _ := tvspoof.LoadTradePlans("")
+
+	m := model{
+		symbol:   symbol,
+		interval: interval,
+		reqBars:  numBars,
+		state:    state,
+		client:   client,
+		plans:    plans,
+	}
+
+	var opts []tea.ProgramOption
+	if !*noClearFlag {
+		opts = append(opts, tea.WithAltScreen())
+	}
+
+	p := tea.NewProgram(m, opts...)
+
 	// Quote / Tick Callback
 	client.OnQuote = func(q tvspoof.QuoteUpdate) {
-		if q.Symbol != symbol {
-			return
-		}
-		state.mu.Lock()
-		defer state.mu.Unlock()
-
-		if q.Price != nil {
-			state.lastPrice = q.Price
-			state.precision = determinePrecision(symbol, *q.Price)
-		}
-		if q.Bid != nil {
-			state.bid = q.Bid
-		}
-		if q.Ask != nil {
-			state.ask = q.Ask
-		}
-		if q.Change != nil {
-			state.change = q.Change
-		}
-		if q.ChangePercent != nil {
-			state.changePercent = q.ChangePercent
-		}
-		if q.Volume != nil {
-			state.volume = q.Volume
-		}
-		if q.Open != nil {
-			state.open = q.Open
-		}
-		if q.High != nil {
-			state.high = q.High
-		}
-		if q.Low != nil {
-			state.low = q.Low
-		}
-		if q.PrevClose != nil {
-			state.prevClose = q.PrevClose
-		}
-		state.lastTickTime = time.Now()
-		state.tickCount++
+		p.Send(quoteMsg(q))
 	}
 
 	// Bar / Candle Callback
 	client.OnBar = func(update tvspoof.BarUpdate) {
-		if update.Symbol != symbol || update.Interval != interval {
-			return
-		}
-		state.mu.Lock()
-		defer state.mu.Unlock()
-
-		state.activeBar = update.Bar
-		state.hasActiveBar = true
-
-		if state.lastPrice == nil {
-			state.precision = determinePrecision(symbol, update.Bar.Close)
-		}
-
-		// Replace or append to history bars
-		if len(state.historyBars) > 0 {
-			lastIdx := len(state.historyBars) - 1
-			if state.historyBars[lastIdx].Time == update.Bar.Time {
-				state.historyBars[lastIdx] = update.Bar
-			} else if update.Bar.Time > state.historyBars[lastIdx].Time {
-				state.historyBars = append(state.historyBars, update.Bar)
-				if len(state.historyBars) > numBars+10 {
-					state.historyBars = state.historyBars[len(state.historyBars)-(numBars+10):]
-				}
-			}
-		} else {
-			state.historyBars = append(state.historyBars, update.Bar)
-		}
+		p.Send(barMsg(update))
 	}
 
 	client.OnError = func(err error) {
-		state.mu.Lock()
-		state.statusMsg = fmt.Sprintf("Error: %v", err)
-		state.mu.Unlock()
+		p.Send(statusMsg(fmt.Sprintf("Error: %v", err)))
 	}
 
-	// Load initial OHLCV history
+	// Load initial OHLCV history in background (at least 100 bars for statistical depth)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		bars, err := client.GetHistory(ctx, symbol, interval, numBars+5)
-		state.mu.Lock()
-		if err != nil {
-			state.statusMsg = fmt.Sprintf("Histori gagal: %v (menunggu live stream...)", err)
-		} else {
-			state.historyBars = bars
-			if len(bars) > 0 {
-				state.activeBar = bars[len(bars)-1]
-				state.hasActiveBar = true
-				if state.lastPrice == nil {
-					state.precision = determinePrecision(symbol, bars[len(bars)-1].Close)
-				}
-			}
-			state.statusMsg = "Terhubung ke TradingView live stream"
+		fetchBars := 120
+		if numBars+5 > fetchBars {
+			fetchBars = numBars + 5
 		}
-		state.mu.Unlock()
+
+		bars, err := client.GetHistory(ctx, symbol, interval, fetchBars)
+		p.Send(historyLoadedMsg{bars: bars, err: err})
 	}()
 
 	// Connect websocket
@@ -224,29 +324,12 @@ func main() {
 	// Subscribe to quotes & bars
 	client.AddSymbol(symbol)
 	if err := client.SubscribeBars(symbol, interval); err != nil {
-		state.mu.Lock()
-		state.statusMsg = fmt.Sprintf("Subscribe bar warning: %v", err)
-		state.mu.Unlock()
+		p.Send(statusMsg(fmt.Sprintf("Subscribe bar warning: %v", err)))
 	}
 
-	// Render loop ticker
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-
-	// Handle graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	for {
-		select {
-		case <-sigChan:
-			fmt.Print("\033[?25h\n") // Show cursor
-			fmt.Println(colorYellow + "Menutup koneksi..." + colorReset)
-			client.Close()
-			return
-		case <-ticker.C:
-			renderDashboard(state, numBars, !*noClearFlag)
-		}
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -295,7 +378,7 @@ func padRow(left, right string, innerWidth int) string {
 	return left + strings.Repeat(" ", pad) + right
 }
 
-func renderDashboardString(s *MarketState, maxBars int) string {
+func renderDashboardString(s *MarketState, maxBars int, plans []tvspoof.TradePlan) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -309,7 +392,7 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 	const innerW = 92
 
 	// --- Summary Card Top Box ---
-	sb.WriteString("  " + colorCyan + "┌" + strings.Repeat("─", innerW) + "┐\n" + colorReset)
+	sb.WriteString("  " + colorCyan + "┌" + strings.Repeat("─", innerW) + "┐" + colorReset + "\n")
 
 	headerTitle := fmt.Sprintf("  ⚡ ZTERM TICK & OHLCV MONITOR  •  %s%s%s  •  TF: %s%s%s",
 		colorYellow+colorBold, s.symbol, colorReset+colorCyan,
@@ -317,8 +400,8 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 	)
 	timeText := fmt.Sprintf("Waktu: %s UTC  ", now)
 	headerContent := padRow(headerTitle, timeText, innerW)
-	sb.WriteString("  " + colorCyan + "│" + colorReset + headerContent + colorCyan + "│\n" + colorReset)
-	sb.WriteString("  " + colorCyan + "├" + strings.Repeat("─", innerW) + "┤\n" + colorReset)
+	sb.WriteString("  " + colorCyan + "│" + colorReset + headerContent + colorCyan + "│" + colorReset + "\n")
+	sb.WriteString("  " + colorCyan + "├" + strings.Repeat("─", innerW) + "┤" + colorReset + "\n")
 
 	// Format Card Values
 	priceStr := "---"
@@ -381,27 +464,26 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 	c1r1 := "  " + colorBold + "LAST PRICE" + colorReset + " : " + colorBold + chgColor + priceStr + colorReset
 	c2r1 := "  " + colorBold + "CHANGE" + colorReset + " : " + chgColor + changeValStr + colorReset
 	c3r1 := fmt.Sprintf("  "+colorBold+"TICKS"+colorReset+"  : %d", s.tickCount)
-	sb.WriteString("  " + colorCyan + "│" + colorReset + padCellLeft(c1r1, 34) + colorDarkGray + "│" + colorReset + padCellLeft(c2r1, 32) + colorDarkGray + "│" + colorReset + padCellLeft(c3r1, 24) + colorCyan + "│\n" + colorReset)
+	sb.WriteString("  " + colorCyan + "│" + colorReset + padCellLeft(c1r1, 34) + colorDarkGray + "│" + colorReset + padCellLeft(c2r1, 32) + colorDarkGray + "│" + colorReset + padCellLeft(c3r1, 24) + colorCyan + "│" + colorReset + "\n")
 
 	// Row 2: BID / ASK | SPREAD | VOLUME
 	c1r2 := "  " + colorBold + "BID / ASK " + colorReset + " : " + bidAskStr
 	c2r2 := "  " + colorBold + "SPREAD" + colorReset + " : " + spreadStr
 	c3r2 := "  " + colorBold + "VOLUME" + colorReset + " : " + volStr
-	sb.WriteString("  " + colorCyan + "│" + colorReset + padCellLeft(c1r2, 34) + colorDarkGray + "│" + colorReset + padCellLeft(c2r2, 32) + colorDarkGray + "│" + colorReset + padCellLeft(c3r2, 24) + colorCyan + "│\n" + colorReset)
+	sb.WriteString("  " + colorCyan + "│" + colorReset + padCellLeft(c1r2, 34) + colorDarkGray + "│" + colorReset + padCellLeft(c2r2, 32) + colorDarkGray + "│" + colorReset + padCellLeft(c3r2, 24) + colorCyan + "│" + colorReset + "\n")
 
 	// Row 3: DAY RANGE | DAY OPEN | PREV CLOSE
 	c1r3 := "  " + colorBold + "DAY RANGE " + colorReset + " : " + rangeStr
 	c2r3 := "  " + colorBold + "OPEN  " + colorReset + " : " + openStr
 	c3r3 := "  " + colorBold + "P.CLOSE" + colorReset + ": " + prevCloseStr
-	sb.WriteString("  " + colorCyan + "│" + colorReset + padCellLeft(c1r3, 34) + colorDarkGray + "│" + colorReset + padCellLeft(c2r3, 32) + colorDarkGray + "│" + colorReset + padCellLeft(c3r3, 24) + colorCyan + "│\n" + colorReset)
+	sb.WriteString("  " + colorCyan + "│" + colorReset + padCellLeft(c1r3, 34) + colorDarkGray + "│" + colorReset + padCellLeft(c2r3, 32) + colorDarkGray + "│" + colorReset + padCellLeft(c3r3, 24) + colorCyan + "│" + colorReset + "\n")
 
-	sb.WriteString("  " + colorCyan + "└" + strings.Repeat("─", innerW) + "┘\n\n" + colorReset)
+	sb.WriteString("  " + colorCyan + "└" + strings.Repeat("─", innerW) + "┘" + colorReset + "\n\n")
 
 	// --- Active Desk Trade Plans Section ---
-	plans, _ := tvspoof.LoadTradePlans("")
 	if len(plans) > 0 {
 		sb.WriteString(colorBold + colorYellow + "  📋 DESK TRADE PLANS (tradeplans.json):" + colorReset + "\n")
-		sb.WriteString(colorDarkGray + "  ┌────────────────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┐\n" + colorReset)
+		sb.WriteString(colorDarkGray + "  ┌────────────────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┐" + colorReset + "\n")
 		sb.WriteString("  " + colorDarkGray + "│" + colorBold +
 			padCellLeft("  Asset / Plan", 24) + colorDarkGray + "│" + colorBold +
 			padCellCenter("Action", 10) + colorDarkGray + "│" + colorBold +
@@ -409,13 +491,12 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 			padCellRight("Entry  ", 10) + colorDarkGray + "│" + colorBold +
 			padCellRight("SL  ", 10) + colorDarkGray + "│" + colorBold +
 			padCellRight("TP1  ", 10) + colorDarkGray + "│" + colorBold +
-			padCellCenter("RRR", 12) + colorDarkGray + "│\n" + colorReset)
-		sb.WriteString(colorDarkGray + "  ├────────────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼────────────┤\n" + colorReset)
+			padCellCenter("RRR", 12) + colorDarkGray + "│" + colorReset + "\n")
+		sb.WriteString(colorDarkGray + "  ├────────────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼────────────┤" + colorReset + "\n")
 
 		for _, pl := range plans {
 			planPrec := determinePrecision(pl.Symbol, pl.Entry)
 
-			// Asset name
 			assetLabel := pl.Asset
 			if assetLabel == "" {
 				assetLabel = pl.Symbol
@@ -425,7 +506,6 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 			}
 			col1 := padCellLeft("  "+assetLabel, 24)
 
-			// Direction with color
 			dirStr := pl.Direction
 			switch strings.ToUpper(pl.Direction) {
 			case "BUY":
@@ -439,7 +519,6 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 			}
 			col2 := padCellCenter(dirStr, 10)
 
-			// Status badge
 			stStr := pl.Status
 			switch strings.ToUpper(pl.Status) {
 			case "RUNNING":
@@ -467,7 +546,7 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 				col4 + colorDarkGray + "│" + colorReset +
 				col5 + colorDarkGray + "│" + colorReset +
 				col6 + colorDarkGray + "│" + colorReset +
-				col7 + colorDarkGray + "│\n" + colorReset
+				col7 + colorDarkGray + "│" + colorReset + "\n"
 			sb.WriteString(pRow)
 
 			if pl.Notes != "" {
@@ -476,17 +555,15 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 					noteTxt = string([]rune(noteTxt)[:87]) + "..."
 				}
 				noteCell := padCellLeft(colorGray+noteTxt+colorReset, innerW)
-				sb.WriteString("  " + colorDarkGray + "│" + colorReset + noteCell + colorDarkGray + "│\n" + colorReset)
+				sb.WriteString("  " + colorDarkGray + "│" + colorReset + noteCell + colorDarkGray + "│" + colorReset + "\n")
 			}
 		}
-		sb.WriteString(colorDarkGray + "  └────────────────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴────────────┘\n\n" + colorReset)
+		sb.WriteString(colorDarkGray + "  └────────────────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴────────────┘" + colorReset + "\n\n")
 	}
 
 	// --- OHLCV Table Section ---
-	// Columns: Time(24) | Open(10) | High(10) | Low(10) | Close(10) | Range(10) | Trend(12)
-	// Total: 24 + 10 + 10 + 10 + 10 + 10 + 12 = 86 + 6 inner separators = 92 inner width!
 	sb.WriteString(colorBold + "  📊 RIWAYAT CANDLESTICK OHLCV (" + formatInterval(s.interval) + "):" + colorReset + "\n")
-	sb.WriteString(colorDarkGray + "  ┌────────────────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┐\n" + colorReset)
+	sb.WriteString(colorDarkGray + "  ┌────────────────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┐" + colorReset + "\n")
 	
 	tblHdr := "  " + colorDarkGray + "│" + colorBold +
 		padCellLeft("  Waktu (UTC)", 24) + colorDarkGray + "│" + colorBold +
@@ -495,9 +572,9 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 		padCellRight("Low  ", 10) + colorDarkGray + "│" + colorBold +
 		padCellRight("Close  ", 10) + colorDarkGray + "│" + colorBold +
 		padCellRight("Range  ", 10) + colorDarkGray + "│" + colorBold +
-		padCellCenter("Trend", 12) + colorDarkGray + "│\n" + colorReset
+		padCellCenter("Trend", 12) + colorDarkGray + "│" + colorReset + "\n"
 	sb.WriteString(tblHdr)
-	sb.WriteString(colorDarkGray + "  ├────────────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼────────────┤\n" + colorReset)
+	sb.WriteString(colorDarkGray + "  ├────────────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼────────────┤" + colorReset + "\n")
 
 	displayList := s.historyBars
 	if len(displayList) > maxBars {
@@ -505,7 +582,7 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 	}
 
 	if len(displayList) == 0 {
-		sb.WriteString("  " + colorDarkGray + "│" + colorReset + padCellCenter("Menunggu data candlestick dari stream...", innerW) + colorDarkGray + "│\n" + colorReset)
+		sb.WriteString("  " + colorDarkGray + "│" + colorReset + padCellCenter("Menunggu data candlestick dari stream...", innerW) + colorDarkGray + "│" + colorReset + "\n")
 	} else {
 		for i, bar := range displayList {
 			candleTime := time.Unix(bar.Time, 0).UTC().Format("2006-01-02 15:04")
@@ -540,11 +617,11 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 				lowCell + colorDarkGray + "│" + colorReset +
 				closeCell + colorDarkGray + "│" + colorReset +
 				rangeCell + colorDarkGray + "│" + colorReset +
-				trendCell + colorDarkGray + "│\n" + colorReset
+				trendCell + colorDarkGray + "│" + colorReset + "\n"
 			sb.WriteString(rowStr)
 		}
 	}
-	sb.WriteString(colorDarkGray + "  └────────────────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴────────────┘\n" + colorReset)
+	sb.WriteString(colorDarkGray + "  └────────────────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴────────────┘" + colorReset + "\n")
 
 	// --- Mini ASCII Chart of Close Prices ---
 	if len(displayList) >= 3 {
@@ -585,17 +662,9 @@ func renderDashboardString(s *MarketState, maxBars int) string {
 	}
 
 	// Status line
-	sb.WriteString("\n" + colorGray + "  ● Status: " + s.statusMsg + " (Tekan Ctrl+C untuk keluar)\n" + colorReset)
+	sb.WriteString("\n" + colorGray + "  ● Status: " + s.statusMsg + " (Tekan 'q' atau Ctrl+C untuk keluar)\n" + colorReset)
 
 	return sb.String()
-}
-
-func renderDashboard(s *MarketState, maxBars int, clearScreen bool) {
-	output := renderDashboardString(s, maxBars)
-	if clearScreen {
-		fmt.Print("\033[H\033[2J\033[?25l") // Clear screen, move to top-left, hide cursor
-	}
-	fmt.Print(output)
 }
 
 func determinePrecision(symbol string, price float64) int {

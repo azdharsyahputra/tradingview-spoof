@@ -92,3 +92,62 @@ func TestCalculateSessionLiquidity(t *testing.T) {
 		t.Errorf("unexpected PDH/PDL: PDH=%f, PDL=%f", liq.PDH, liq.PDL)
 	}
 }
+
+func TestCalculateInstitutionalLevels(t *testing.T) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 2, 0, 0, 0, time.UTC).Unix()
+
+	bars15M := []Bar{
+		{Time: today, Open: 4350, High: 4375, Low: 4340, Close: 4360, Volume: 100},
+		{Time: today + 900, Open: 4360, High: 4370, Low: 4335, Close: 4345, Volume: 150},
+	}
+	barsD := []Bar{
+		{Time: today - 86400, Open: 4340, High: 4380, Low: 4320, Close: 4370},
+		{Time: today, Open: 4370, High: 4375, Low: 4335, Close: 4345},
+	}
+
+	vp := VolumeProfile{POC: 4355, VAH: 4370, VAL: 4340}
+	liq := SessionLiquidity{AsiaHigh: 4375, AsiaLow: 4335, PDH: 4380, PDL: 4320, PDC: 4370, DailyOpen: 4370}
+	smc := SMCMetrics{UnfilledFVGPrice: 4365, PricingZone: "Discount"}
+
+	lm := calculateInstitutionalLevels(nil, bars15M, nil, nil, barsD, 4345.0, vp, liq, smc, 2)
+
+	if lm.TodayHigh < 4375 {
+		t.Errorf("expected TodayHigh >= 4375, got %f", lm.TodayHigh)
+	}
+	if lm.TodayLow > 4335 {
+		t.Errorf("expected TodayLow <= 4335, got %f", lm.TodayLow)
+	}
+	if lm.DailyPivot <= 0 {
+		t.Errorf("expected valid DailyPivot, got %f", lm.DailyPivot)
+	}
+	if len(lm.Resistances) != 3 {
+		t.Errorf("expected 3 resistance levels, got %d", len(lm.Resistances))
+	}
+	if len(lm.Supports) != 3 {
+		t.Errorf("expected 3 support levels, got %d", len(lm.Supports))
+	}
+	if len(lm.SupplyZones) == 0 {
+		t.Errorf("expected at least 1 supply zone")
+	}
+	if len(lm.DemandZones) == 0 {
+		t.Errorf("expected at least 1 demand zone")
+	}
+	if len(lm.KeyLevels) == 0 {
+		t.Errorf("expected key levels to be populated")
+	}
+}
+
+func TestCalculateInstitutionalLevelsEmptyEdgeCase(t *testing.T) {
+	vp := VolumeProfile{}
+	liq := SessionLiquidity{}
+	smc := SMCMetrics{}
+
+	lm := calculateInstitutionalLevels(nil, nil, nil, nil, nil, 4350.0, vp, liq, smc, 2)
+	if lm.TodayHigh != 4350.0 || lm.TodayLow != 4350.0 {
+		t.Errorf("expected fallback to currentPrice for empty bars, got High=%f, Low=%f", lm.TodayHigh, lm.TodayLow)
+	}
+	if len(lm.Resistances) != 3 || len(lm.Supports) != 3 {
+		t.Errorf("expected standard pivot levels even with empty history")
+	}
+}

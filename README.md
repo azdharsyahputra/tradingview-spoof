@@ -11,7 +11,7 @@ High-performance market data engine, quantitative analytics suite, and **AI Hedg
 * **uTLS Chrome Fingerprint Spoofing** — Mimics real Chrome TLS handshakes (`HelloChrome_Auto`) for unblockable WebSocket & chart session connections.
 * **🏛️ Executive Prop Desk Briefing (`cmd/desk`)** — Institutional-grade multi-asset quantitative briefing with macro radar, volume profile, liquidity maps, and actionable trade playbooks.
 * **⚡ Live Terminal Monitor (`cmd/thick`)** — Pixel-perfect Box Drawing terminal dashboard streaming real-time ticks, bid/ask spreads, OHLCV candle tables, and sparklines.
-* **🌐 Intermarket Macro Radar** — Parallel cross-asset feeds tracking US Dollar Index (`DXY`), 10-Year Treasury Yield (`US10Y`), S&P 500 (`SPX`), and Silver (`XAGUSD`).
+* **🌐 Intermarket Macro Radar** — Parallel cross-asset feeds tracking US Dollar Index (`DXY`), nominal 10-Year Treasury Yield (`US10Y`), daily 10-Year TIPS real yield (`FRED:DFII10`, preferred for the gold rates regime), S&P 500 (`SPX`), and Silver (`XAGUSD`).
 * **📊 Auction Theory & Volume Profile (VPVR)** — Real-time Point of Control (`POC`), Value Area High (`VAH`), Value Area Low (`VAL`), and volume distribution histograms.
 * **🎯 Session Liquidity Tracker** — Automatic detection of Asian Range High/Low, London Open sweeps (*Judas Swings*), and Previous Day High/Low (`PDH`/`PDL`).
 * **🧠 Smart Money Concepts (SMC)** — Automated Market Structure Shift (`MSS`), Fair Value Gaps (`FVG`), and Premium vs. Discount pricing zones.

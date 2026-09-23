@@ -14,13 +14,18 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
    * Command: `go run ./cmd/desk [symbol] [balance_usd] [risk_percent]`
    * Example: `go run ./cmd/desk xauusd 10000 1.0`
    * **Provides**:
-     - **Intermarket Macro Radar**: Live Dollar Index (`DXY`), 10-Year Treasury Yield (`US10Y`), S&P 500 (`SPX`), and Silver (`XAGUSD`) correlations.
+     - **Intermarket Macro Radar**: Dollar Index (`DXY`), nominal 10-Year Treasury Yield (`US10Y`), daily 10-Year TIPS real yield (`FRED:DFII10`, preferred for the gold rates regime with nominal-yield fallback), S&P 500 (`SPX`), and Silver (`XAGUSD`).
      - **Auction Theory & Volume Profile (VPVR)**: Point of Control (`POC`), Value Area High (`VAH`), Value Area Low (`VAL`).
      - **Session Liquidity Tracking**: Asian Range High/Low, London Open Sweeps, Previous Day High/Low (`PDH`/`PDL`).
      - **Smart Money Concepts (SMC)**: Fair Value Gaps (`FVG`), Market Structure Shift (`MSS`), Discount vs. Premium Pricing Zone.
      - **Proprietary Risk Engine**: Volatility-adjusted (ATR) Invalidation (`SL`), Target 1 (`TP1`), Target 2 (`TP2`), Expected Value (`+EV`), Kelly/Fixed Risk Position Sizing (Lots), and Conviction Score (0–100%) with Grade (`A+`, `A`, `B+`, `B`, `C`).
 
-2. **Real-Time Streaming Terminal Monitor (`cmd/thick`):**
+2. **Institutional Levels & Supply/Demand Radar (`cmd/levels`):**
+   * Command: `go run ./cmd/levels [symbol]`
+   * Example: `go run ./cmd/levels xauusd`
+   * **Provides**: Today High/Low range, Classic/Dynamic Pivot Points (R1–R3, S1–S3), Key Reference Benchmarks (PDH/PDL, Asia High/Low, POC, VAH/VAL), and Institutional Order Flow Supply & Demand Zones with distance, timeframe, test count, and status ("FRESH" vs "TESTED").
+
+3. **Real-Time Streaming Terminal Monitor (`cmd/thick`):**
    * Command: `go run ./cmd/thick [symbol] [timeframe]`
    * Example: `go run ./cmd/thick xauusd 15`
    * **Provides**: Live WebSocket tick stream, Bid/Ask spread, 3-column summary card, and live OHLCV candlestick matrix with sparkline charts.
@@ -33,10 +38,22 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
      - `GET /api/calendar?date=today&currency=USD` — Cached ForexFactory economic catalyst calendar.
      - `WS /ws/quotes` & `WS /ws/bars` — Live streaming feeds.
 
-4. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`):**
+4. **Exness Execution & Order Management Engine (`cmd/order`):**
+   * Commands:
+     - `go run ./cmd/order positions` — View all open positions, entry prices, and floating PnL.
+     - `go run ./cmd/order buy [symbol] [volume] [sl] [tp]` — Direct market BUY order execution.
+     - `go run ./cmd/order sell [symbol] [volume] [sl] [tp]` — Direct market SELL order execution.
+     - `go run ./cmd/order close [position_id]` — Close specific position.
+     - `go run ./cmd/order close all` — Emergency liquidation of all active positions.
+     - `go run ./cmd/order config [token] [account_id] [server]` — Store credentials to `.env`.
+
+5. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`, `exness.go`):**
    * `tvspoof.NewClient().AnalyzeDesk(ctx, symbol, balance, risk)`
    * `tvspoof.NewClient().GetHistory(ctx, symbol, interval, bars)`
    * `tvspoof.FetchForexFactoryCalendar(ctx)`
+   * `tvspoof.ExecuteExnessOrder(ctx, params)`
+   * `tvspoof.GetExnessPositions(ctx)`
+   * `tvspoof.CloseExnessPosition(ctx, id, vol)`
 
 ---
 

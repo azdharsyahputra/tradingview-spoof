@@ -40,7 +40,7 @@ func TestRenderDashboardAlignmentScenarios(t *testing.T) {
 				},
 			}
 
-			output := renderDashboardString(state, 10)
+			output := renderDashboardString(state, 10, nil)
 			lines := strings.Split(output, "\n")
 
 			for lineIdx, line := range lines {
@@ -69,7 +69,7 @@ func TestRenderDashboardEmptyHistoryAlignment(t *testing.T) {
 		precision: 2,
 	}
 
-	output := renderDashboardString(state, 10)
+	output := renderDashboardString(state, 10, nil)
 	lines := strings.Split(output, "\n")
 
 	for lineIdx, line := range lines {

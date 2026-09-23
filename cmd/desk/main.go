@@ -128,8 +128,13 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 	} else if b.ConvictionScore < 65 {
 		badgeColor = cBgYellow
 	}
-	convictionText := fmt.Sprintf("  EXECUTIVE BIAS: %s %s %s  |  CONVICTION: %s %d%%  |  GRADE: %s %s %s",
+	winRateColor := cGreen
+	if b.Playbook.EstimatedWinRate < 50 {
+		winRateColor = cYellow
+	}
+	convictionText := fmt.Sprintf("  EXECUTIVE BIAS: %s %s %s  |  EST. WINRATE: %s%.1f%%%s  |  CONVICTION: %s %d%%  |  GRADE: %s %s %s",
 		badgeColor, b.ExecutiveBias, cReset,
+		cBold+winRateColor, b.Playbook.EstimatedWinRate, cReset,
 		gaugeBar, b.ConvictionScore,
 		cBold+cYellow, b.ConvictionGrade, cReset,
 	)
@@ -139,6 +144,7 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 	// Section 1: Intermarket Macro Drivers
 	printBoxRow(cBold+cBlue+"  🌐 1. INTERMARKET MACRO RADAR & REGIME"+cReset, w)
 	printBoxRow(fmt.Sprintf("     • Macro Regime : %s", b.Intermarket.MacroRegime), w)
+	printBoxRow(fmt.Sprintf("     • Rates Signal : %s", b.Intermarket.RatesSignalSource), w)
 
 	if b.Intermarket.DXY != nil {
 		d := b.Intermarket.DXY
@@ -149,6 +155,11 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 		u := b.Intermarket.US10Y
 		printBoxRow(fmt.Sprintf("     • %-16s : Yield: %-7.3f%% (Chg: %+.2f%%) ➔ %s",
 			u.Name, u.Price, u.ChangePerc, u.ImpactOnSym), w)
+	}
+	if b.Intermarket.US10YReal != nil {
+		r := b.Intermarket.US10YReal
+		printBoxRow(fmt.Sprintf("     • %-16s : Yield: %-7.3f%% (Δ %+.1f bp, %s, as of %s) ➔ %s",
+			r.Name, r.Price, r.ChangeBps, r.Lookback, r.AsOf, r.ImpactOnSym), w)
 	}
 	if b.Intermarket.SPX != nil {
 		s := b.Intermarket.SPX
@@ -162,8 +173,51 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 	}
 	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
 
-	// Section 2: Volume Profile & Institutional Liquidity
-	printBoxRow(cBold+cMagenta+"  📊 2. VOLUME PROFILE (VPVR) & INSTITUTIONAL LIQUIDITY MAP"+cReset, w)
+	// Section 2: Multi-Timeframe Matrix (M1, M5, M15, H1, H4, D1)
+	printBoxRow(cBold+cCyan+"  ⏱️  2. MULTI-TIMEFRAME (MTF) CONFLUENCE & STRUCTURE MATRIX"+cReset, w)
+	printBoxRow(cGray+"     TF            | Bias         | Structure / Key Flow          | RSI(14) | EMA(21)   | Candle Flow"+cReset, w)
+	printBoxRow(cDarkGray+"     ──────────────┼──────────────┼───────────────────────────────┼─────────┼───────────┼───────────────────"+cReset, w)
+	for _, f := range b.MTF.Frames {
+		biasColor := cYellow
+		if strings.Contains(f.Bias, "BULL") {
+			biasColor = cGreen
+		} else if strings.Contains(f.Bias, "BEAR") {
+			biasColor = cRed
+		}
+		row := fmt.Sprintf("     %-13s | %s%-12s%s | %-29s | %-7.1f | %-9.2f | %s",
+			f.TF, biasColor, f.Bias, cReset, f.Structure, f.RSI, f.EMA21, f.Candle)
+		printBoxRow(row, w)
+	}
+	printBoxRow(cDarkGray+"     ───────────────────────────────────────────────────────────────────────────────────────────"+cReset, w)
+	printBoxRow(fmt.Sprintf("     • MTF Confluence : %s%s%s", cBold+cYellow, b.MTF.AlignmentSummary, cReset), w)
+	printBoxRow(cBold+cBlue+"     • Candle Anatomy & Morphology Breakdown (Recent Bars):"+cReset, w)
+	for _, f := range b.MTF.Frames {
+		if f.TF == "M1 (1-Min)" || f.TF == "M5 (5-Min)" || f.TF == "M15 (15-Min)" || f.TF == "H1 (1-Hour)" {
+			tfShort := strings.Split(f.TF, " ")[0]
+			for idx, cm := range f.RecentCandles {
+				barOffset := idx - (len(f.RecentCandles) - 1)
+				barLabel := "Live"
+				if barOffset < 0 {
+					barLabel = fmt.Sprintf("-%d", -barOffset)
+				}
+				chgColor := cGreen
+				chgSign := "+"
+				if cm.Change < 0 {
+					chgColor = cRed
+					chgSign = ""
+				}
+				row := fmt.Sprintf("       [%-3s %-4s %s UTC] %s ➔ %s (%s%s%.2f%s) ➔ %s",
+					tfShort, barLabel, cm.TimeStr,
+					tvspoof.FormatDeskPrice(cm.Open, p), tvspoof.FormatDeskPrice(cm.Close, p),
+					chgColor, chgSign, cm.Change, cReset, cm.Summary)
+				printBoxRow(row, w)
+			}
+		}
+	}
+	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
+
+	// Section 3: Volume Profile & Institutional Liquidity
+	printBoxRow(cBold+cMagenta+"  📊 3. VOLUME PROFILE (VPVR) & INSTITUTIONAL LIQUIDITY MAP"+cReset, w)
 	vpLine := fmt.Sprintf("     • POC (Highest Vol): %s%s%s  |  VAH (Value High): %s%s%s  |  VAL (Value Low): %s%s%s",
 		cBold+cYellow, tvspoof.FormatDeskPrice(b.VolumeProfile.POC, p), cReset,
 		cBold+cRed, tvspoof.FormatDeskPrice(b.VolumeProfile.VAH, p), cReset,
@@ -183,10 +237,129 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 
 	printBoxRow(fmt.Sprintf("     • SMC Pricing Zone     : %s", b.SMC.PricingZone), w)
 	printBoxRow(fmt.Sprintf("     • Market Structure     : %s", b.SMC.MarketStructure), w)
+	if b.SMC.StructureSeq.LastHigh.Price > 0 || b.SMC.StructureSeq.LastLow.Price > 0 {
+		swingLine := fmt.Sprintf("     • Swing Points (HH/LL) : %s%s%s (High: %s @ %s | Low: %s @ %s)",
+			cBold+cYellow, b.SMC.StructureSeq.SequenceFlow, cReset,
+			b.SMC.StructureSeq.LastHigh.Type, tvspoof.FormatDeskPrice(b.SMC.StructureSeq.LastHigh.Price, p),
+			b.SMC.StructureSeq.LastLow.Type, tvspoof.FormatDeskPrice(b.SMC.StructureSeq.LastLow.Price, p))
+		printBoxRow(swingLine, w)
+	}
+
+	// FVG display
+	fvgLine := fmt.Sprintf("     • Fair Value Gaps      : Bullish FVG: %d  |  Bearish FVG: %d", len(b.SMC.BullishFVGs), len(b.SMC.BearishFVGs))
+	if b.SMC.UnfilledFVGPrice > 0 {
+		fvgLine += fmt.Sprintf("  |  Nearest Unfilled: %s", tvspoof.FormatDeskPrice(b.SMC.UnfilledFVGPrice, p))
+	}
+	printBoxRow(fvgLine, w)
+
+	// Order Block display
+	obLine := "     • Order Blocks         :"
+	if b.SMC.BullishOB != "" {
+		obLine += fmt.Sprintf(" %s🟢 Bullish OB [%s]%s", cBold+cGreen, b.SMC.BullishOB, cReset)
+	}
+	if b.SMC.BearishOB != "" {
+		if b.SMC.BullishOB != "" {
+			obLine += "  |"
+		}
+		obLine += fmt.Sprintf(" %s🔴 Bearish OB [%s]%s", cBold+cRed, b.SMC.BearishOB, cReset)
+	}
+	if b.SMC.BullishOB == "" && b.SMC.BearishOB == "" {
+		obLine += " None detected"
+	}
+	printBoxRow(obLine, w)
+
+	// BOS display
+	bosLine := fmt.Sprintf("     • Break of Structure   : %s", b.SMC.BOSDirection)
+	if b.SMC.BOSLevel > 0 {
+		bosLine += fmt.Sprintf(" @ %s", tvspoof.FormatDeskPrice(b.SMC.BOSLevel, p))
+	}
+	printBoxRow(bosLine, w)
+
+	// ChoCH display
+	if b.SMC.ChoCHDetected {
+		chochLine := fmt.Sprintf("     • Change of Character  : %s%s @ %s%s",
+			cBold+cYellow, b.SMC.ChoCHDirection, tvspoof.FormatDeskPrice(b.SMC.ChoCHLevel, p), cReset)
+		printBoxRow(chochLine, w)
+	}
+
 	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
 
-	// Section 3: Actionable Institutional Trade Playbook
-	printBoxRow(cBold+cYellow+"  🎯 3. ACTIONABLE PROPRIETARY TRADE PLAYBOOK"+cReset, w)
+	// Section 4: Institutional Support & Resistance (S/R) & Key Levels
+	printBoxRow(cBold+cCyan+"  📐 4. INSTITUTIONAL SUPPORT & RESISTANCE (S/R) & KEY LEVELS"+cReset, w)
+	rangeText := fmt.Sprintf("     • Today Range       : %s%s%s (High) - %s%s%s (Low) | Spread: %s%.2f pts%s",
+		cBold+cRed, tvspoof.FormatDeskPrice(b.Levels.TodayHigh, p), cReset,
+		cBold+cGreen, tvspoof.FormatDeskPrice(b.Levels.TodayLow, p), cReset,
+		cBold+cYellow, b.Levels.TodayRange, cReset)
+	printBoxRow(rangeText, w)
+
+	pivotText := fmt.Sprintf("     • Daily Pivot Point : %s%s%s  |  Daily Open: %s%s%s",
+		cBold+cYellow, tvspoof.FormatDeskPrice(b.Levels.DailyPivot, p), cReset,
+		cBold+cCyan, tvspoof.FormatDeskPrice(b.Levels.DailyOpen, p), cReset)
+	printBoxRow(pivotText, w)
+
+	// Resistances line
+	rLine := "     • Major Resistances : "
+	for i, r := range b.Levels.Resistances {
+		if i > 0 {
+			rLine += " | "
+		}
+		rLine += fmt.Sprintf("%s: %s%s%s (%s+%.1f pts%s)",
+			strings.Split(r.Level, " ")[0],
+			cBold+cRed, tvspoof.FormatDeskPrice(r.Price, p), cReset,
+			cRed, r.DistancePts, cReset)
+	}
+	printBoxRow(rLine, w)
+
+	// Supports line
+	sLine := "     • Major Supports    : "
+	for i, s := range b.Levels.Supports {
+		if i > 0 {
+			sLine += " | "
+		}
+		sLine += fmt.Sprintf("%s: %s%s%s (%s-%.1f pts%s)",
+			strings.Split(s.Level, " ")[0],
+			cBold+cGreen, tvspoof.FormatDeskPrice(s.Price, p), cReset,
+			cGreen, s.DistancePts, cReset)
+	}
+	printBoxRow(sLine, w)
+
+	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
+
+	// Section 5: Institutional Supply & Demand Zones
+	printBoxRow(cBold+cMagenta+"  ⚡ 5. INSTITUTIONAL SUPPLY & DEMAND ZONES (ORDER FLOW MAP)"+cReset, w)
+	printBoxRow(cGray+"     Zone Type     | Price Range               | Distance  | Strength              | Status"+cReset, w)
+	printBoxRow(cDarkGray+"     ──────────────┼───────────────────────────┼───────────┼───────────────────────┼──────────────────────────"+cReset, w)
+
+	// Supply Zones
+	for idx, sz := range b.Levels.SupplyZones {
+		distStr := fmt.Sprintf("+%.2f pts", sz.DistancePts)
+		if sz.DistancePts == 0 {
+			distStr = "In Zone"
+		}
+		row := fmt.Sprintf("     %s🔴 Supply #%d%s  | %-25s | %-9s | %-21s | %s",
+			cBold+cRed, idx+1, cReset,
+			fmt.Sprintf("%s - %s", tvspoof.FormatDeskPrice(sz.BottomPrice, p), tvspoof.FormatDeskPrice(sz.TopPrice, p)),
+			distStr, sz.Strength, sz.Status)
+		printBoxRow(row, w)
+	}
+
+	// Demand Zones
+	for idx, dz := range b.Levels.DemandZones {
+		distStr := fmt.Sprintf("-%.2f pts", dz.DistancePts)
+		if dz.DistancePts == 0 {
+			distStr = "In Zone"
+		}
+		row := fmt.Sprintf("     %s🟢 Demand #%d%s  | %-25s | %-9s | %-21s | %s",
+			cBold+cGreen, idx+1, cReset,
+			fmt.Sprintf("%s - %s", tvspoof.FormatDeskPrice(dz.BottomPrice, p), tvspoof.FormatDeskPrice(dz.TopPrice, p)),
+			distStr, dz.Strength, dz.Status)
+		printBoxRow(row, w)
+	}
+
+	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
+
+	// Section 6: Actionable Institutional Trade Playbook
+	printBoxRow(cBold+cYellow+"  🎯 6. ACTIONABLE PROPRIETARY TRADE PLAYBOOK"+cReset, w)
 	printBoxRow(fmt.Sprintf("     • Playbook Plan     : %s%s%s", cBold+cGreen, b.Playbook.PrimaryPlan, cReset), w)
 	printBoxRow(fmt.Sprintf("     • Optimal Entry Zone: %s%s%s", cBold, b.Playbook.OptimalEntryZone, cReset), w)
 	printBoxRow(fmt.Sprintf("     • Invalidation (SL) : %s%s%s (Structural Stop Loss below VAL / Asia Low)",
@@ -195,15 +368,16 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 		cBold+cGreen, tvspoof.FormatDeskPrice(b.Playbook.Target1Price, p), cReset), w)
 	printBoxRow(fmt.Sprintf("     • Target 2 (TP2)    : %s%s%s (Day High / Liquidity Pool Expansion)",
 		cBold+cGreen, tvspoof.FormatDeskPrice(b.Playbook.Target2Price, p), cReset), w)
-	printBoxRow(fmt.Sprintf("     • Risk / Reward     : %s1 : %.2f%s  |  Recommended Position Size: %s%.2f Lots%s ($%.0f Account)",
+	printBoxRow(fmt.Sprintf("     • Risk / Reward     : %s1 : %.2f%s  |  Est. Win Rate: %s%.1f%%%s  |  Size: %s%.2f Lots%s ($%.0f Account)",
 		cBold+cYellow, b.Playbook.RiskRewardRatio, cReset,
+		cBold+cGreen, b.Playbook.EstimatedWinRate, cReset,
 		cBold+cCyan, b.Playbook.RecommendedLots, cReset, balance), w)
-	printBoxRow(fmt.Sprintf("     • Max Risk Budget   : $%.2f (%.1f%%)  |  Expected Value (EV): %s+$%.2f%s",
-		b.Playbook.RiskAmountUSD, risk, cBold+cGreen, b.Playbook.ExpectedValueUSD, cReset), w)
+	printBoxRow(fmt.Sprintf("     • Max Risk Budget   : $%.2f (%.1f%%)  |  Expected Value (EV): %s+$%.2f%s  |  Edge: %s+EV Mathematical Edge%s",
+		b.Playbook.RiskAmountUSD, risk, cBold+cGreen, b.Playbook.ExpectedValueUSD, cReset, cBold+cGreen, cReset), w)
 	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
 
-	// Section 4: Economic Calendar Catalyst Watch
-	printBoxRow(cBold+"  📅 4. UPCOMING CATALYST WATCH (TODAY)"+cReset, w)
+	// Section 7: Economic Calendar Catalyst Watch
+	printBoxRow(cBold+"  📅 7. UPCOMING CATALYST WATCH (TODAY)"+cReset, w)
 	if len(b.UpcomingEvents) == 0 {
 		printBoxRow("     • No immediate high-impact USD economic events scheduled for today.", w)
 	} else {
@@ -218,8 +392,8 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 	}
 	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
 
-	// Section 5: Registered Trade Plans Watchlist
-	printBoxRow(cBold+cYellow+"  📋 5. REGISTERED DESK TRADE PLANS (tradeplans.json)"+cReset, w)
+	// Section 8: Registered Trade Plans Watchlist
+	printBoxRow(cBold+cYellow+"  📋 8. REGISTERED DESK TRADE PLANS (tradeplans.json)"+cReset, w)
 	plans, _ := tvspoof.LoadTradePlans("")
 	if len(plans) == 0 {
 		printBoxRow("     • No active trade plans saved. Manage plans in tradeplans.json", w)

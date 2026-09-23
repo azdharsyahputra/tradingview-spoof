@@ -45,9 +45,26 @@ func (c *Client) GetHistory(ctx context.Context, symbol, interval string, bars i
 		NetDialTLSContext: customUTLSDialer,
 		EnableCompression: true,
 	}
-	conn, _, err := dialer.DialContext(ctx, defaultWSURL, historyHeaders(c.origin, c.userAgent))
-	if err != nil {
-		return nil, fmt.Errorf("historical websocket dial failed: %w", err)
+	var conn *websocket.Conn
+	var dialErr error
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(300*(1<<(attempt-1))) * time.Millisecond
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+		var cConn *websocket.Conn
+		cConn, _, dialErr = dialer.DialContext(ctx, defaultWSURL, historyHeaders(c.origin, c.userAgent))
+		if dialErr == nil {
+			conn = cConn
+			break
+		}
+	}
+	if conn == nil {
+		return nil, fmt.Errorf("historical websocket dial failed: %w", dialErr)
 	}
 	defer conn.Close()
 
