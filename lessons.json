@@ -320,5 +320,28 @@
     "emotion_note": "Sangat tenang, disiplin, dan profesional. Profit diamankan ke saldo kas riil secara otomatis tanpa emosi keserakahan.",
     "grade": "A",
     "created_at": "2026-09-24 08:40:00"
+  },
+  {
+    "id": "LESSON-015",
+    "date": "2026-09-24",
+    "symbol": "OANDA:XAUUSD",
+    "direction": "BUY",
+    "outcome": "LOSS",
+    "entry": 4264.70,
+    "sl": 4256.00,
+    "tp_hit": 0.0,
+    "pnl_pips": -87.0,
+    "rrr_actual": "-1.00",
+    "plan_id": "PLAN-XAUUSD-015A/B",
+    "setup_type": "PREMATURE_SINGLE_BAR_COUNTER_TREND_BUY",
+    "timeframe": "5m",
+    "session": "LONDON",
+    "tags": ["falling_knife", "single_candle_trap", "bear_flag_compression", "lack_of_mss", "demand_expansion", "sl_discipline"],
+    "what_worked": "Disiplin eksekusi Invalidation SL di 4256.00 menutup posisi tepat saat harga menembus ke low 4254.42, membatasi kerugian total di -$17.40 dan melindungi saldo portofolio tetap kokoh di +$145.58 NET CASH.",
+    "what_failed": "KESALAHAN KRUSIAL STRUKTURAL & TIMING: 1) Single-Bar Trap di M5: Tergesa-gesa entry BUY hanya berdasarkan 1 candle hijau M5 (bar #096 @ 09:05) tanpa menunggu Market Structure Shift (MSS) menembus Lower High terdekat (4270.54). 2) Bear Flag Compression Diabaikan: Tiga candle berikutnya (#097, #098, #099) mengalami kompresi doji lemah di 4261-4265 yang sebenarnya adalah pola kelanjutan bearish (bear flag), bukan pembalikan arah. 3) Demand Extreme Belum Tersapu Tuntas: Zona demand H1/H4 sebenarnya berada di 4251.86 - 4255.70, sehingga drop lanjutan ke 4254.42 adalah pergerakan pasti untuk menyapu likuiditas lantai sebelum terjadi konsolidasi sebenarnya.",
+    "lesson": "4 ATURAN BESI BELAJAR DARI SL XAUUSD-015: 1) JANGAN PERNAH ENTRY HANYA KARENA 1 CANDLE M5 HIJAU DI TENGAH DOWNTREND DERAS (Lesson-007 Retrospective). 2) WAJIB MENUNGGU MSS VALID: Reversal buy HANYA valid jika harga berhasil break dan close di atas Lower High sebelumnya pada M5 (minimal 300 bars context). 3) KOMPRESI DOJI DI BAWAH RESISTEN ADALAH JEBAKAN BEAR FLAG: Jika setelah rejection candle harga hanya berputar di doji tanpa ekspansi volume ke atas, itu sinyal distribusi untuk drop lanjutan. 4) IDENTIFIKASI DEMAND FLOOR ASLI: Jangan anggap pantulan di atas zona demand adalah bottom; selalu antisipasi sweep hingga ke batas bawah demand block H1/H4 (4251-4255).",
+    "emotion_note": "Evaluasi objektif, jujur, dan mendalam. Tidak ada penyangkalan (no denial). SL adalah biaya belajar untuk mempertajam ketelitian trigger di M5 agar tidak mengulang menangkap pisau jatuh.",
+    "grade": "C",
+    "created_at": "2026-09-24 09:35:00"
   }
 ]
