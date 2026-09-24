@@ -515,6 +515,6 @@ func renderCandlesTable(r CandlesFeedReport, limit int) {
 	}
 
 	fmt.Println(cCyan + "╚" + strings.Repeat("═", w) + "╝" + cReset)
-	fmt.Printf("  💡 Tip: Gunakan `go run ./cmd/candles [symbol] [interval] [bars]` (contoh: `go run ./cmd/candles xauusd 15 100`)\n")
+	fmt.Printf("  💡 Tip: Gunakan `go run ./cmd/candles [symbol] [interval] [bars]` (contoh: `go run ./cmd/candles xauusd 15 100` atau `go run ./cmd/candles xauusd 5 300`)\n")
 	fmt.Printf("          Tambahkan flag `--json` untuk output JSON murni yang bisa di-pipe ke subagent / script.\n\n")
 }

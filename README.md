@@ -49,7 +49,35 @@ go run ./cmd/thick xauusd 15
 go run ./cmd/thick btc 5
 ```
 
-### 3. REST & WebSocket API Server (`cmd/server`)
+### 3. Institutional Candlestick Feed (`cmd/candles`)
+High-resolution OHLCV bar matrix with Fair Value Gaps (FVG), Market Structure Shift (MSS), Swing High/Low, and candlestick pattern classification:
+
+```bash
+# Dual-timeframe mandatory setup audit:
+# M15 minimum 100 bars (macro/session structural narrative)
+go run ./cmd/candles xauusd 15 100
+
+# M5 minimum 300 bars (100 × 3 rasio M15/M5 - micro trigger, MSS & sniper SL)
+go run ./cmd/candles xauusd 5 300
+```
+
+### 4. Institutional S/R & Supply/Demand Radar (`cmd/levels`)
+Calculates today range, classic/dynamic pivot points, key reference benchmarks (PDH/PDL, Asia High/Low, POC, VAH/VAL), and order flow supply/demand zones:
+
+```bash
+go run ./cmd/levels xauusd
+go run ./cmd/levels usoil
+```
+
+### 5. CFTC Commitments of Traders (COT) Smart Money Radar (`cmd/cot`)
+Direct CFTC open data parser tracking Non-Commercial (Hedge Funds) vs Commercial (Hedgers) net positions and institutional bias:
+
+```bash
+go run ./cmd/cot gold
+go run ./cmd/cot # Multi-asset core radar
+```
+
+### 6. REST & WebSocket API Server (`cmd/server`)
 Launches the HTTP/WebSocket bridge on `http://127.0.0.1:8080`:
 
 ```bash
@@ -143,13 +171,17 @@ func main() {
 When an AI coding agent or assistant (`agy` / Antigravity) opens this workspace, it acts as an **Institutional Prop Desk Quant**.
 
 Whenever asked for market insights or price predictions:
-1. **Execute Desk Analytics**: Automatically runs `go run ./cmd/desk [symbol]` to fetch live data.
+1. **Execute Quantitative & Candlestick Suite**:
+   * Runs `go run ./cmd/levels [symbol]` (Institutional S/R & Supply/Demand).
+   * Runs `go run ./cmd/desk [symbol]` (Volume Profile, Macro Radar, SMC & Risk Sizing).
+   * Runs `go run ./cmd/candles [symbol] 15 100` AND `go run ./cmd/candles [symbol] 5 300` (Mandatory Dual-TF Audit: M15 100 bars for macro structure, M5 300 bars [100 × 3] for micro trigger & sniper SL).
+   * Runs `go run ./cmd/cot [symbol]` (CFTC Smart Money hedge fund positioning).
 2. **Synthesize 4 Pillars**:
    * *Macro Backdrop* (DXY, Yields, Cross-Asset Tailwind/Headwind).
    * *Auction Mechanics* (Volume Profile POC, VAH, VAL).
    * *Session Liquidity* (Asia/London High/Low sweeps).
-   * *SMC Zone* (Discount/Premium, Fair Value Gaps).
-3. **Formulate High-Conviction Playbook**: Provides exact Entry, Invalidation (SL), Targets (TP1/TP2), Risk-Reward Ratio (RRR), and Position Sizing.
+   * *SMC Zone & Morphology* (Discount/Premium, Fair Value Gaps, Wick Absorption, MSS).
+3. **Formulate High-Conviction Playbook**: Provides exact Entry, Invalidation (SL), Targets (TP1/TP2), Risk-Reward Ratio (RRR), and CFD Micro-Position Sizing.
 
 ---
 

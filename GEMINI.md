@@ -49,9 +49,9 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
 3. **Institutional OHLCV & Raw Candlestick Feed (`cmd/candles`):**
    * Commands:
      - `go run ./cmd/candles [symbol] 15 100` (Macro/Session Structural Context - MINIMUM 100 BARS)
-     - `go run ./cmd/candles [symbol] 5 100` (Micro Trigger, MSS & Reversal Confirmation - MINIMUM 100 BARS)
-   * Example: `go run ./cmd/candles xauusd 15 100` and `go run ./cmd/candles xauusd 5 100`
-   * **Provides**: 100+ raw OHLCV bar matrix, exact candle timestamps, body/wick metrics, delta/change, volume spikes, Bullish/Bearish ratio, ATR(14), Swing Highs/Lows (`SH`/`SL`), Fair Value Gaps (`FVG`), and candlestick pattern classifications. **Dual-timeframe audit (M15 + M5) is MANDATORY**: M15 maps session structure & HTF S/D zones, while M5 eliminates execution lag, detects micro-Market Structure Shifts (MSS), and secures sniper invalidation (tight SL).
+     - `go run ./cmd/candles [symbol] 5 300` (Micro Trigger, MSS & Reversal Confirmation - MINIMUM 300 BARS [100 × 3 rasio M15/M5])
+   * Example: `go run ./cmd/candles xauusd 15 100` and `go run ./cmd/candles xauusd 5 300`
+   * **Provides**: 100+ / 300+ raw OHLCV bar matrix, exact candle timestamps, body/wick metrics, delta/change, volume spikes, Bullish/Bearish ratio, ATR(14), Swing Highs/Lows (`SH`/`SL`), Fair Value Gaps (`FVG`), and candlestick pattern classifications. **Dual-timeframe audit (M15 100 bars + M5 300 bars) is MANDATORY**: M15 maps session structure & HTF S/D zones, while M5 (300 bars setara rentang 100 bar M15) eliminates execution lag, detects micro-Market Structure Shifts (MSS), and secures sniper invalidation (tight SL).
 
 4. **CFTC Commitments of Traders (COT) Smart Money Radar (`cmd/cot`):**
    * Command: `go run ./cmd/cot [symbol]` or `go run ./cmd/cot` (Multi-Asset Overview)
@@ -100,7 +100,7 @@ Whenever the user asks about market conditions, price targets, trade viability, 
 1. **Execute Quantitative & Candlestick Commands First (STRICT TRIO + DUAL-TF CANDLES + COT REQUIREMENT)**:
    * Run `go run ./cmd/levels [symbol]` (to get live institutional S/R, Supply/Demand order flow zones, today range, and pivot benchmarks).
    * Run `go run ./cmd/desk [symbol] [balance_usd] [risk_percent]` (to get full intermarket macro radar, Volume Profile POC/VAH/VAL, session sweeps, SMC FVG/OB, and Kelly/ATR risk sizing).
-   * Run `go run ./cmd/candles [symbol] 15 100` AND `go run ./cmd/candles [symbol] 5 100` (MANDATORY DUAL-TF AUDIT: M15 for macro auction narrative/session sweeps, and M5 for granular micro-structure shift [MSS], volume impulse, wick absorption, and tight invalidation SL. NEVER rely solely on M15 close which causes execution lag and misses fast high-beta moves!).
+   * Run `go run ./cmd/candles [symbol] 15 100` AND `go run ./cmd/candles [symbol] 5 300` (MANDATORY DUAL-TF AUDIT: M15 minimal 100 bars for macro auction narrative/session sweeps, and M5 minimal 300 bars [100 × 3 rasio M15/M5] for granular micro-structure shift [MSS], volume impulse, wick absorption, and tight invalidation SL. NEVER rely solely on M15 close which causes execution lag and misses fast high-beta moves!).
    * Run `go run ./cmd/cot [symbol]` (to verify Smart Money Hedge Fund Net Position & Macro Bias before proposing entry).
    * **Never** give an opinion, distribution assessment, or trade plan without fresh execution outputs from the quantitative suite!
 
@@ -153,8 +153,8 @@ Before executing or proposing ANY market entry, you MUST verify against these 5 
    * *Aturan*: JANGAN PERNAH front-run entry BUY/SELL hanya karena harga masuk zona diskon/premium tanpa sweep tuntas.
 
 2. **🔄 Check 2: Structural Confirmation & Candlestick Anatomy (Lesson-007 & M5/M15 Dual-TF)**:
-   * *Pertanyaan*: Apakah candle feed M15 (`cmd/candles [symbol] 15 100`) dan M5 (`cmd/candles [symbol] 5 100`) menunjukkan Market Structure Shift (MSS) atau candle rejection kuat (Hammer, Shooting Star, Engulfing, Wick Absorption) yang sudah CLOSE?
-   * *Aturan*: JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi. Selalu verifikasi trigger konfirmasi di M5 untuk menghindari lag M15 dan mendapatkan titik SL optimal.
+   * *Pertanyaan*: Apakah candle feed M15 (`cmd/candles [symbol] 15 100`) dan M5 (`cmd/candles [symbol] 5 300`) menunjukkan Market Structure Shift (MSS) atau candle rejection kuat (Hammer, Shooting Star, Engulfing, Wick Absorption) yang sudah CLOSE?
+   * *Aturan*: JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi. Selalu verifikasi trigger konfirmasi di M5 (minimal 300 bars) untuk menghindari lag M15 dan mendapatkan titik SL optimal.
 
 3. **🎯 Check 3: Auction Theory & Anti-FOMO (Lesson-006)**:
    * *Pertanyaan*: Apakah harga sedang menabrak atap resisten/range ceiling?
