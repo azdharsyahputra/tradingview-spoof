@@ -47,16 +47,23 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
    * **Provides**: Today High/Low range, Classic/Dynamic Pivot Points (R1–R3, S1–S3), Key Reference Benchmarks (PDH/PDL, Asia High/Low, POC, VAH/VAL), and Institutional Order Flow Supply & Demand Zones with distance, timeframe, test count, and status ("FRESH" vs "TESTED").
 
 3. **Institutional OHLCV & Raw Candlestick Feed (`cmd/candles`):**
-   * Command: `go run ./cmd/candles [symbol] [interval] [bars]` (MINIMUM 100 BARS MANDATORY)
-   * Example: `go run ./cmd/candles xauusd 15 100` (or `go run ./cmd/candles xauusd 15 100 --json`)
-   * **Provides**: 100+ raw OHLCV bar matrix, exact candle timestamps, body/wick metrics, delta/change, volume spikes, Bullish/Bearish ratio, ATR(14), Swing Highs/Lows (`SH`/`SL`), Fair Value Gaps (`FVG`), and candlestick pattern classifications. Minimum 100 candles are required to ensure deep structural context across Asian/London/NY session transitions.
+   * Commands:
+     - `go run ./cmd/candles [symbol] 15 100` (Macro/Session Structural Context - MINIMUM 100 BARS)
+     - `go run ./cmd/candles [symbol] 5 100` (Micro Trigger, MSS & Reversal Confirmation - MINIMUM 100 BARS)
+   * Example: `go run ./cmd/candles xauusd 15 100` and `go run ./cmd/candles xauusd 5 100`
+   * **Provides**: 100+ raw OHLCV bar matrix, exact candle timestamps, body/wick metrics, delta/change, volume spikes, Bullish/Bearish ratio, ATR(14), Swing Highs/Lows (`SH`/`SL`), Fair Value Gaps (`FVG`), and candlestick pattern classifications. **Dual-timeframe audit (M15 + M5) is MANDATORY**: M15 maps session structure & HTF S/D zones, while M5 eliminates execution lag, detects micro-Market Structure Shifts (MSS), and secures sniper invalidation (tight SL).
 
-4. **Real-Time Streaming Terminal Monitor (`cmd/thick`):**
+4. **CFTC Commitments of Traders (COT) Smart Money Radar (`cmd/cot`):**
+   * Command: `go run ./cmd/cot [symbol]` or `go run ./cmd/cot` (Multi-Asset Overview)
+   * Example: `go run ./cmd/cot gold` or `go run ./cmd/cot`
+   * **Provides**: Official US CFTC open data on Smart Money / Non-Commercial (Hedge Funds) vs Commercial (Hedger) net positions, Open Interest, Long/Short ratio, Institutional Bias Rating (`ULTRA BULLISH`, `BULLISH`, `BEARISH`, `ULTRA BEARISH`), and Strategic Desk Directives (anti-counter-trend rules).
+
+5. **Real-Time Streaming Terminal Monitor (`cmd/thick`):**
    * Command: `go run ./cmd/thick [symbol] [timeframe]`
    * Example: `go run ./cmd/thick xauusd 15`
    * **Provides**: Live WebSocket tick stream, Bid/Ask spread, 3-column summary card, and live OHLCV candlestick matrix with sparkline charts.
 
-5. **REST & WebSocket API Server (`cmd/server`):**
+6. **REST & WebSocket API Server (`cmd/server`):**
    * Command: `go run ./cmd/server`
    * **Endpoints**:
      - `GET /api/desk?symbol=...&balance=...&risk=...` — Full Quantitative Briefing JSON.
@@ -64,7 +71,7 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
      - `GET /api/calendar?date=today&currency=USD` — Cached ForexFactory economic catalyst calendar.
      - `WS /ws/quotes` & `WS /ws/bars` — Live streaming feeds.
 
-6. **Exness Execution & Order Management Engine (`cmd/order`):**
+7. **Exness Execution & Order Management Engine (`cmd/order`):**
    * Commands:
      - `go run ./cmd/order positions` — View all open positions, entry prices, and floating PnL.
      - `go run ./cmd/order buy [symbol] [volume] [sl] [tp]` — Direct market BUY order execution.
@@ -73,10 +80,11 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
      - `go run ./cmd/order close all` — Emergency liquidation of all active positions.
      - `go run ./cmd/order config [token] [account_id] [server]` — Store credentials to `.env`.
 
-7. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`, `exness.go`, `tradeplan.go`, `lesson.go`):**
+8. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`, `exness.go`, `tradeplan.go`, `lesson.go`, `cot.go`):**
    * `tvspoof.NewClient().AnalyzeDesk(ctx, symbol, balance, risk)`
    * `tvspoof.NewClient().GetHistory(ctx, symbol, interval, bars)`
    * `tvspoof.FetchForexFactoryCalendar(ctx)`
+   * `tvspoof.FetchCOT(ctx, symbol)`, `tvspoof.FetchAllCoreCOT(ctx)`
    * `tvspoof.ExecuteExnessOrder(ctx, params)`
    * `tvspoof.GetExnessPositions(ctx)`
    * `tvspoof.CloseExnessPosition(ctx, id, vol)`
@@ -89,20 +97,22 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
 
 Whenever the user asks about market conditions, price targets, trade viability, or proposing ANY entry:
 
-1. **Execute Quantitative Commands First (STRICT REQUIREMENT)**:
+1. **Execute Quantitative & Candlestick Commands First (STRICT TRIO + DUAL-TF CANDLES + COT REQUIREMENT)**:
    * Run `go run ./cmd/levels [symbol]` (to get live institutional S/R, Supply/Demand order flow zones, today range, and pivot benchmarks).
    * Run `go run ./cmd/desk [symbol] [balance_usd] [risk_percent]` (to get full intermarket macro radar, Volume Profile POC/VAH/VAL, session sweeps, SMC FVG/OB, and Kelly/ATR risk sizing).
-   * **Never** give an opinion or trade plan without fresh execution outputs from both commands!
+   * Run `go run ./cmd/candles [symbol] 15 100` AND `go run ./cmd/candles [symbol] 5 100` (MANDATORY DUAL-TF AUDIT: M15 for macro auction narrative/session sweeps, and M5 for granular micro-structure shift [MSS], volume impulse, wick absorption, and tight invalidation SL. NEVER rely solely on M15 close which causes execution lag and misses fast high-beta moves!).
+   * Run `go run ./cmd/cot [symbol]` (to verify Smart Money Hedge Fund Net Position & Macro Bias before proposing entry).
+   * **Never** give an opinion, distribution assessment, or trade plan without fresh execution outputs from the quantitative suite!
 
 2. **Mandatory Lesson Audit (`lessons.json`) Before Proposing/Executing Entry**:
    * You MUST ALWAYS read and review [`lessons.json`](file:///Users/csadeveloper/kkn/zterm/lessons.json) before proposing or confirming any trade entry.
    * Cross-reference current market structure against recorded lessons (e.g., Lesson-005: anti-front-running liquidity sweeps, Lesson-006: POC gravity vs range top FOMO, Lesson-007: anti-counter-trend without MSS, Lesson-008: trailing BEP).
 
-3. **Four-Pillar Structural Breakdown**:
+3. **Four-Pillar Structural & Candlestick Breakdown**:
    * **Pillar 1: Macro Backdrop** (What are DXY and Yields doing? Tailwind vs. Headwind).
    * **Pillar 2: Auction Mechanics & Volume Profile** (Where is the POC? Is price in Value Area or rejecting VAH/VAL?).
    * **Pillar 3: Session Liquidity & Sweeps** (Has the Asian Low/High been swept? Where are the retail stop loss pools?).
-   * **Pillar 4: SMC & Fair Value Gaps** (Is price in Discount for longs or Premium for shorts? Is there an unfilled FVG?).
+   * **Pillar 4: Candlestick Morphology & SMC** (Audit exact candle anatomy from `cmd/candles`: Wick absorption, Bull/Bear FVG, MSS, Volume Spikes, and Discount/Premium pricing).
 
 4. **Actionable Trade Thesis & Playbook**:
    * Clear Execution Bias: `Bullish`, `Bearish`, or `Neutral/Range`.
@@ -142,9 +152,9 @@ Before executing or proposing ANY market entry, you MUST verify against these 5 
    * *Pertanyaan*: Apakah likuiditas (Asian High/Low, PDH/PDL, atau Extreme S/D) sudah tuntas disapu (swept)?
    * *Aturan*: JANGAN PERNAH front-run entry BUY/SELL hanya karena harga masuk zona diskon/premium tanpa sweep tuntas.
 
-2. **🔄 Check 2: Structural Confirmation & MSS (Lesson-007)**:
-   * *Pertanyaan*: Apakah ada Market Structure Shift (MSS) atau candle rejection kuat (Hammer, Shooting Star, Engulfing) di M5/M15?
-   * *Aturan*: JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs.
+2. **🔄 Check 2: Structural Confirmation & Candlestick Anatomy (Lesson-007 & M5/M15 Dual-TF)**:
+   * *Pertanyaan*: Apakah candle feed M15 (`cmd/candles [symbol] 15 100`) dan M5 (`cmd/candles [symbol] 5 100`) menunjukkan Market Structure Shift (MSS) atau candle rejection kuat (Hammer, Shooting Star, Engulfing, Wick Absorption) yang sudah CLOSE?
+   * *Aturan*: JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi. Selalu verifikasi trigger konfirmasi di M5 untuk menghindari lag M15 dan mendapatkan titik SL optimal.
 
 3. **🎯 Check 3: Auction Theory & Anti-FOMO (Lesson-006)**:
    * *Pertanyaan*: Apakah harga sedang menabrak atap resisten/range ceiling?
