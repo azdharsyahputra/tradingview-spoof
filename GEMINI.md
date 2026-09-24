@@ -95,14 +95,15 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
 
 ## 📋 Standard Operating Procedure (SOP) for Market Analysis & Trade Decisions
 
-Whenever the user asks about market conditions, price targets, trade viability, or proposing ANY entry:
+Whenever the user asks to **FIND A SETUP** ("cari setup", "ada setup ga", "cek setup"), or asks about market conditions, price targets, trade viability, or proposing ANY entry:
 
-1. **Execute Quantitative & Candlestick Commands First (STRICT TRIO + DUAL-TF CANDLES + COT REQUIREMENT)**:
-   * Run `go run ./cmd/levels [symbol]` (to get live institutional S/R, Supply/Demand order flow zones, today range, and pivot benchmarks).
-   * Run `go run ./cmd/desk [symbol] [balance_usd] [risk_percent]` (to get full intermarket macro radar, Volume Profile POC/VAH/VAL, session sweeps, SMC FVG/OB, and Kelly/ATR risk sizing).
-   * Run `go run ./cmd/candles [symbol] 15 100` AND `go run ./cmd/candles [symbol] 5 300` (MANDATORY DUAL-TF AUDIT: M15 minimal 100 bars for macro auction narrative/session sweeps, and M5 minimal 300 bars [100 × 3 rasio M15/M5] for granular micro-structure shift [MSS], volume impulse, wick absorption, and tight invalidation SL. NEVER rely solely on M15 close which causes execution lag and misses fast high-beta moves!).
-   * Run `go run ./cmd/cot [symbol]` (to verify Smart Money Hedge Fund Net Position & Macro Bias before proposing entry).
-   * **Never** give an opinion, distribution assessment, or trade plan without fresh execution outputs from the quantitative suite!
+1. **WAJIB HUKUMNYA CEK CANDLE SEBELUM CARI / PROPOSE SETUP (STRICT DUAL-TF + TRIO + COT)**:
+   * **Wajib Eksekusi**: `go run ./cmd/candles [symbol] 15 100` (M15 minimal 100 bars untuk narasi lelang sesi/HTF structural context).
+   * **Wajib Eksekusi**: `go run ./cmd/candles [symbol] 5 300` (M5 minimal 300 bars [100 × 3 rasio M15/M5] untuk micro-MSS, wick absorption, volume impulse, dan sniper SL).
+   * **Wajib Eksekusi**: `go run ./cmd/levels [symbol]` (S/R institutional, S/D order flow zones, today range, dan pivot benchmarks).
+   * **Wajib Eksekusi**: `go run ./cmd/desk [symbol] [balance_usd] [risk_percent]` (macro radar, VPVR POC/VAH/VAL, session sweeps, SMC, ATR risk sizing).
+   * **Wajib Eksekusi**: `go run ./cmd/cot [symbol]` (verifikasi posisi Smart Money Hedge Funds & institutional bias).
+   * **DILARANG KERAS** mencari, menganalisis, atau mengajukan setup entry TANPA mengecek langsung candle feed M15 (100 bars) dan M5 (300 bars)!
 
 2. **Mandatory Lesson Audit (`lessons.json`) Before Proposing/Executing Entry**:
    * You MUST ALWAYS read and review [`lessons.json`](file:///Users/csadeveloper/kkn/zterm/lessons.json) before proposing or confirming any trade entry.
@@ -154,7 +155,7 @@ Before executing or proposing ANY market entry, you MUST verify against these 5 
 
 2. **🔄 Check 2: Structural Confirmation & Candlestick Anatomy (Lesson-007 & M5/M15 Dual-TF)**:
    * *Pertanyaan*: Apakah candle feed M15 (`cmd/candles [symbol] 15 100`) dan M5 (`cmd/candles [symbol] 5 300`) menunjukkan Market Structure Shift (MSS) atau candle rejection kuat (Hammer, Shooting Star, Engulfing, Wick Absorption) yang sudah CLOSE?
-   * *Aturan*: JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi. Selalu verifikasi trigger konfirmasi di M5 (minimal 300 bars) untuk menghindari lag M15 dan mendapatkan titik SL optimal.
+   * *Aturan*: WAJIB HUKUMNYA cek candle feed M15 (100 bars) dan M5 (300 bars) sebelum mencari atau mengeksekusi setup apapun. JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi. Selalu verifikasi trigger konfirmasi di M5 (minimal 300 bars) untuk menghindari lag M15 dan mendapatkan titik SL optimal.
 
 3. **🎯 Check 3: Auction Theory & Anti-FOMO (Lesson-006)**:
    * *Pertanyaan*: Apakah harga sedang menabrak atap resisten/range ceiling?

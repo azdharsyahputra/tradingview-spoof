@@ -342,14 +342,14 @@
     "symbol": "OANDA:XAUUSD",
     "asset": "GOLD (XAUUSD) - M5 Bullish Marubozu & Demand Sweep (0.01 Lot Quick Harvest)",
     "direction": "BUY",
-    "status": "ACTIVE",
+    "status": "CLOSED",
     "entry": 4264.70,
     "entry_zone": "4263.00 - 4265.00",
     "sl": 4256.00,
     "tp1": 4273.80,
     "tp2": 4286.50,
     "rrr": "1:1.05 (TP1) / 1:2.51 (TP2)",
-    "notes": "M5 BULLISH MARUBOZU & DEMAND SWEEP CONFIRMATION (Grade A / COT Ultra Bullish): Entry BUY 0.01 lot pasca sweep Asian Low ke 4258.86 di Demand #2 dan konfirmasi candle M5 Bullish Marubozu (+4.38 pts) menelan penuh bar sebelumnya. SL di bawah batas demand floor 4256.00 (-8.7 pts / -$8.70 risk). Target TP1 di VAL / Asian Low 4273.80 (+9.1 pts / +$9.10 ➔ Kunci BEP). Margin $21.32.",
+    "notes": "CLOSED @ SL 4256.00 (-87.0 pips / -$8.70). Harga menembus swing low ke 4255.28 dan tertutup disiplin via Invalidation SL.",
     "created_at": "2026-09-24 09:10:45"
   },
   {
@@ -357,7 +357,7 @@
     "symbol": "OANDA:XAUUSD",
     "asset": "GOLD (XAUUSD) - M5 Bullish Marubozu & Demand Sweep (0.01 Lot Runner BEP)",
     "direction": "BUY",
-    "status": "ACTIVE",
+    "status": "CLOSED",
     "entry": 4264.70,
     "entry_zone": "4263.00 - 4265.00",
     "sl": 4256.00,
@@ -365,7 +365,7 @@
     "tp2": 4286.50,
     "tp3": 4303.00,
     "rrr": "1:1.05 (TP1) / 1:2.51 (TP2) / 1:4.40 (TP3)",
-    "notes": "M5 BULLISH MARUBOZU & DEMAND SWEEP RUNNER (Grade A / COT Ultra Bullish): Entry BUY 0.01 lot. Target runner TP2 di Point of Control POC 4286.50 (+21.8 pts / +$21.80) dan TP3 di Day High 4303.00 (+38.3 pts / +$38.30). Begitu TP1 tercapai, SL wajib di-trail ke Breakeven (BEP 4264.70). Margin $21.32.",
+    "notes": "CLOSED @ SL 4256.00 (-87.0 pips / -$8.70). Tertutup secara disiplin via Invalidation SL.",
     "created_at": "2026-09-24 09:10:45"
   }
 ]
