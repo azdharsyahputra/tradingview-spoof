@@ -69,15 +69,7 @@ go run ./cmd/levels xauusd
 go run ./cmd/levels usoil
 ```
 
-### 5. CFTC Commitments of Traders (COT) Smart Money Radar (`cmd/cot`)
-Direct CFTC open data parser tracking Non-Commercial (Hedge Funds) vs Commercial (Hedgers) net positions and institutional bias:
-
-```bash
-go run ./cmd/cot gold
-go run ./cmd/cot # Multi-asset core radar
-```
-
-### 6. REST & WebSocket API Server (`cmd/server`)
+### 5. REST & WebSocket API Server (`cmd/server`)
 Launches the HTTP/WebSocket bridge on `http://127.0.0.1:8080`:
 
 ```bash
@@ -175,7 +167,7 @@ Whenever asked for market insights or price predictions:
    * Runs `go run ./cmd/levels [symbol]` (Institutional S/R & Supply/Demand).
    * Runs `go run ./cmd/desk [symbol]` (Volume Profile, Macro Radar, SMC & Risk Sizing).
    * Runs `go run ./cmd/candles [symbol] 15 100` AND `go run ./cmd/candles [symbol] 5 300` (Mandatory Dual-TF Audit: M15 100 bars for macro structure, M5 300 bars [100 × 3] for micro trigger & sniper SL).
-   * Runs `go run ./cmd/cot [symbol]` (CFTC Smart Money hedge fund positioning).
+   * Runs `go run ./cmd/candles [symbol] 240 50` / `go run ./cmd/candles [symbol] 60 50` (MTF H4/H1 trend confirmation when assessing macro structure).
 2. **Synthesize 4 Pillars**:
    * *Macro Backdrop* (DXY, Yields, Cross-Asset Tailwind/Headwind).
    * *Auction Mechanics* (Volume Profile POC, VAH, VAL).

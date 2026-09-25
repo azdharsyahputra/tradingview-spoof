@@ -53,17 +53,12 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
    * Example: `go run ./cmd/candles xauusd 15 100` and `go run ./cmd/candles xauusd 5 300`
    * **Provides**: 100+ / 300+ raw OHLCV bar matrix, exact candle timestamps, body/wick metrics, delta/change, volume spikes, Bullish/Bearish ratio, ATR(14), Swing Highs/Lows (`SH`/`SL`), Fair Value Gaps (`FVG`), and candlestick pattern classifications. **Dual-timeframe audit (M15 100 bars + M5 300 bars) is MANDATORY**: M15 maps session structure & HTF S/D zones, while M5 (300 bars setara rentang 100 bar M15) eliminates execution lag, detects micro-Market Structure Shifts (MSS), and secures sniper invalidation (tight SL).
 
-4. **CFTC Commitments of Traders (COT) Smart Money Radar (`cmd/cot`):**
-   * Command: `go run ./cmd/cot [symbol]` or `go run ./cmd/cot` (Multi-Asset Overview)
-   * Example: `go run ./cmd/cot gold` or `go run ./cmd/cot`
-   * **Provides**: Official US CFTC open data on Smart Money / Non-Commercial (Hedge Funds) vs Commercial (Hedger) net positions, Open Interest, Long/Short ratio, Institutional Bias Rating (`ULTRA BULLISH`, `BULLISH`, `BEARISH`, `ULTRA BEARISH`), and Strategic Desk Directives (anti-counter-trend rules).
-
-5. **Real-Time Streaming Terminal Monitor (`cmd/thick`):**
+4. **Real-Time Streaming Terminal Monitor (`cmd/thick`):**
    * Command: `go run ./cmd/thick [symbol] [timeframe]`
    * Example: `go run ./cmd/thick xauusd 15`
    * **Provides**: Live WebSocket tick stream, Bid/Ask spread, 3-column summary card, and live OHLCV candlestick matrix with sparkline charts.
 
-6. **REST & WebSocket API Server (`cmd/server`):**
+5. **REST & WebSocket API Server (`cmd/server`):**
    * Command: `go run ./cmd/server`
    * **Endpoints**:
      - `GET /api/desk?symbol=...&balance=...&risk=...` — Full Quantitative Briefing JSON.
@@ -71,7 +66,7 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
      - `GET /api/calendar?date=today&currency=USD` — Cached ForexFactory economic catalyst calendar.
      - `WS /ws/quotes` & `WS /ws/bars` — Live streaming feeds.
 
-7. **Exness Execution & Order Management Engine (`cmd/order`):**
+6. **Exness Execution & Order Management Engine (`cmd/order`):**
    * Commands:
      - `go run ./cmd/order positions` — View all open positions, entry prices, and floating PnL.
      - `go run ./cmd/order buy [symbol] [volume] [sl] [tp]` — Direct market BUY order execution.
@@ -80,11 +75,10 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
      - `go run ./cmd/order close all` — Emergency liquidation of all active positions.
      - `go run ./cmd/order config [token] [account_id] [server]` — Store credentials to `.env`.
 
-8. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`, `exness.go`, `tradeplan.go`, `lesson.go`, `cot.go`):**
+7. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`, `exness.go`, `tradeplan.go`, `lesson.go`):**
    * `tvspoof.NewClient().AnalyzeDesk(ctx, symbol, balance, risk)`
    * `tvspoof.NewClient().GetHistory(ctx, symbol, interval, bars)`
    * `tvspoof.FetchForexFactoryCalendar(ctx)`
-   * `tvspoof.FetchCOT(ctx, symbol)`, `tvspoof.FetchAllCoreCOT(ctx)`
    * `tvspoof.ExecuteExnessOrder(ctx, params)`
    * `tvspoof.GetExnessPositions(ctx)`
    * `tvspoof.CloseExnessPosition(ctx, id, vol)`
@@ -97,12 +91,12 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
 
 Whenever the user asks to **FIND A SETUP** ("cari setup", "ada setup ga", "cek setup"), or asks about market conditions, price targets, trade viability, or proposing ANY entry:
 
-1. **WAJIB HUKUMNYA CEK CANDLE SEBELUM CARI / PROPOSE SETUP (STRICT DUAL-TF + TRIO + COT)**:
+1. **WAJIB HUKUMNYA CEK CANDLE SEBELUM CARI / PROPOSE SETUP (STRICT MTF + DUAL-TF TRIO)**:
    * **Wajib Eksekusi**: `go run ./cmd/candles [symbol] 15 100` (M15 minimal 100 bars untuk narasi lelang sesi/HTF structural context).
    * **Wajib Eksekusi**: `go run ./cmd/candles [symbol] 5 300` (M5 minimal 300 bars [100 × 3 rasio M15/M5] untuk micro-MSS, wick absorption, volume impulse, dan sniper SL).
+   * **Wajib Eksekusi (MTF Context)**: Bila perlu konfirmasi tren makro HTF, cek `go run ./cmd/candles [symbol] 240 50` (H4) dan `go run ./cmd/candles [symbol] 60 50` (H1) untuk memastikan arah tren besar (Lower Highs vs Higher Lows).
    * **Wajib Eksekusi**: `go run ./cmd/levels [symbol]` (S/R institutional, S/D order flow zones, today range, dan pivot benchmarks).
    * **Wajib Eksekusi**: `go run ./cmd/desk [symbol] [balance_usd] [risk_percent]` (macro radar, VPVR POC/VAH/VAL, session sweeps, SMC, ATR risk sizing).
-   * **Wajib Eksekusi**: `go run ./cmd/cot [symbol]` (verifikasi posisi Smart Money Hedge Funds & institutional bias).
    * **DILARANG KERAS** mencari, menganalisis, atau mengajukan setup entry TANPA mengecek langsung candle feed M15 (100 bars) dan M5 (300 bars)!
 
 2. **Mandatory Lesson Audit (`lessons.json`) Before Proposing/Executing Entry**:
