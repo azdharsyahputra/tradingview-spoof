@@ -147,9 +147,10 @@ Before executing or proposing ANY market entry, you MUST verify against these 5 
    * *Pertanyaan*: Apakah likuiditas (Asian High/Low, PDH/PDL, atau Extreme S/D) sudah tuntas disapu (swept)?
    * *Aturan*: JANGAN PERNAH front-run entry BUY/SELL hanya karena harga masuk zona diskon/premium tanpa sweep tuntas.
 
-2. **🔄 Check 2: Structural Confirmation & Candlestick Anatomy (Lesson-007 & M5/M15 Dual-TF)**:
+2. **🔄 Check 2: Structural Confirmation & Candlestick Anatomy (Lesson-007, Lesson-016 & M5/M15 Dual-TF)**:
    * *Pertanyaan*: Apakah candle feed M15 (`cmd/candles [symbol] 15 100`) dan M5 (`cmd/candles [symbol] 5 300`) menunjukkan Market Structure Shift (MSS) atau candle rejection kuat (Hammer, Shooting Star, Engulfing, Wick Absorption) yang sudah CLOSE?
-   * *Aturan*: WAJIB HUKUMNYA cek candle feed M15 (100 bars) dan M5 (300 bars) sebelum mencari atau mengeksekusi setup apapun. JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi. Selalu verifikasi trigger konfirmasi di M5 (minimal 300 bars) untuk menghindari lag M15 dan mendapatkan titik SL optimal.
+   * *Aturan 1 (Anti-Falling Knife)*: WAJIB HUKUMNYA cek candle feed M15 (100 bars) dan M5 (300 bars) sebelum mencari atau mengeksekusi setup apapun. JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi.
+   * *Aturan 2 (Sniper Execution Mandate - Lesson-002 & Lesson-016)*: Ketika harga menguji Extreme Supply/Demand (Supply #2 / Demand #2) dan candle M5 CLOSE membentuk Rejection kuat (Bearish Marubozu, Shooting Star, Hammer) + meninggalkan FVG, WAJIB LANGSUNG PROPOSE / ENTRY SNIPER dengan SL ketat di luar batas zona. DILARANG RAGU-RAGU atau menunggu konfirmasi tingkat dua (breakdown POC) yang merusak Risk-to-Reward Ratio (RRR).
 
 3. **🎯 Check 3: Auction Theory & Anti-FOMO (Lesson-006)**:
    * *Pertanyaan*: Apakah harga sedang menabrak atap resisten/range ceiling?

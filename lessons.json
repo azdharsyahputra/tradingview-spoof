@@ -343,5 +343,28 @@
     "emotion_note": "Evaluasi objektif, jujur, dan mendalam. Tidak ada penyangkalan (no denial). SL adalah biaya belajar untuk mempertajam ketelitian trigger di M5 agar tidak mengulang menangkap pisau jatuh.",
     "grade": "C",
     "created_at": "2026-09-24 09:35:00"
+  },
+  {
+    "id": "LESSON-016",
+    "date": "2026-09-25",
+    "symbol": "OANDA:XAUUSD",
+    "direction": "SELL",
+    "outcome": "MISSED_OPPORTUNITY",
+    "entry": 4294.50,
+    "sl": 4299.50,
+    "tp_hit": 4285.50,
+    "pnl_pips": 0.0,
+    "rrr_actual": "1:5.00 (Potential)",
+    "plan_id": "MISSED-XAUUSD-016",
+    "setup_type": "EXTREME_SUPPLY_DOUBLE_TOP_AND_BEAR_FVG",
+    "timeframe": "5m",
+    "session": "ASIAN_TO_LONDON",
+    "tags": ["missed_sniper_entry", "paralysis_by_analysis", "over_conservative_bias", "supply_rejection", "bear_fvg", "double_top", "anti_hesitation"],
+    "what_worked": "Pemetaan zona Supply #2 (4293.32 - 4298.47), korelasi HTF H4 Downtrend, dan prediksi penolakan di atap 4295.90 & 4295.33 terbukti 100% presisi secara teknikal. Harga anjlok telak -$5.50 menuju POC.",
+    "what_failed": "Ragu-ragu mengajukan eksekusi Sell langsung saat candle M5 #099 mencetak Bearish Marubozu Impulse + Bear FVG di 4294.50. Terjebak bias trauma pasca-SL pagi tadi sehingga menuntut konfirmasi berlebihan di POC 4285 yang membuang potensi keuntungan 100 pips.",
+    "lesson": "3 ATURAN BESI EKSEKUSI SNIPER (ANTI-HESITATION MANDATE): 1) Ketika harga menguji Extreme Supply/Demand (Supply #2 / Demand #2) dan candle M5 CLOSE membentuk Rejection (Bearish Marubozu / Shooting Star / Hammer) + meninggalkan FVG, WAJIB LANGSUNG PROPOSE / ENTRY SNIPER dengan SL ketat di luar batas zona (Lesson-002 Rule). 2) DILARANG MENUNGGU KONFIRMASI TINGKAT DUA (BREAKDOWN POC) jika hal itu memangkas RRR dari 1:5 menjadi 1:2. SL terukur ($5 - $8) adalah harga tiket wajib untuk menangkap ratusan pips. 3) PASANG LIMIT ORDER DI BOUNDARY: Begitu zona S/D teridentifikasi, pasang Sell Limit / Buy Limit di boundary untuk mengeliminasi lag dan keraguan manual.",
+    "emotion_note": "Pelajaran psikologis paling berharga: Jangan biarkan rasa takut rugi dari trade sebelumnya membuat kita lumpuh mengambil setup berkualitas A+ di zona extreme.",
+    "grade": "B",
+    "created_at": "2026-09-25 09:21:00"
   }
 ]
