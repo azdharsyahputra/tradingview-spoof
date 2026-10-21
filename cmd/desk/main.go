@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -50,6 +51,17 @@ func main() {
 	symbolFlag := flag.String("symbol", "OANDA:XAUUSD", "Target TradingView symbol (e.g. xauusd, btc, eurusd)")
 	balanceFlag := flag.Float64("balance", 10000.0, "Portfolio Account Balance in USD")
 	riskFlag := flag.Float64("risk", 1.0, "Risk percentage per trade (e.g. 1.0 for 1%)")
+	jsonOut := false
+	// Accept --json anywhere (agents append it after positional args).
+	rest := os.Args[:1]
+	for _, a := range os.Args[1:] {
+		if a == "--json" || a == "-json" {
+			jsonOut = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	os.Args = rest
 	flag.Parse()
 
 	symbol := *symbolFlag
@@ -72,6 +84,20 @@ func main() {
 	}
 
 	normSym := tvspoof.NormalizeDeskSymbol(symbol)
+
+	if jsonOut {
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		briefing, err := tvspoof.NewClient().AnalyzeDesk(ctx, normSym, balance, risk)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(briefing)
+		return
+	}
 
 	fmt.Print("\033[?25l") // Hide cursor
 	fmt.Printf("%s[⚡ ZTERM HEDGE FUND DESK]%s Menjalankan kalkulasi kuantitatif untuk %s%s%s...\n", cBold+cCyan, cReset, cBold+cYellow, normSym, cReset)
@@ -132,7 +158,7 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 	if b.Playbook.EstimatedWinRate < 50 {
 		winRateColor = cYellow
 	}
-	convictionText := fmt.Sprintf("  EXECUTIVE BIAS: %s %s %s  |  EST. WINRATE: %s%.1f%%%s  |  CONVICTION: %s %d%%  |  GRADE: %s %s %s",
+	convictionText := fmt.Sprintf("  EXECUTIVE BIAS: %s %s %s  |  P(TP1): %s%.1f%%%s  |  SCORE: %s %d/100  |  GRADE: %s %s %s",
 		badgeColor, b.ExecutiveBias, cReset,
 		cBold+winRateColor, b.Playbook.EstimatedWinRate, cReset,
 		gaugeBar, b.ConvictionScore,
@@ -360,20 +386,53 @@ func renderDeskBriefing(b *tvspoof.DeskBriefing, balance, risk float64) {
 
 	// Section 6: Actionable Institutional Trade Playbook
 	printBoxRow(cBold+cYellow+"  🎯 6. ACTIONABLE PROPRIETARY TRADE PLAYBOOK"+cReset, w)
-	printBoxRow(fmt.Sprintf("     • Playbook Plan     : %s%s%s", cBold+cGreen, b.Playbook.PrimaryPlan, cReset), w)
-	printBoxRow(fmt.Sprintf("     • Optimal Entry Zone: %s%s%s", cBold, b.Playbook.OptimalEntryZone, cReset), w)
-	printBoxRow(fmt.Sprintf("     • Invalidation (SL) : %s%s%s (Structural Stop Loss below VAL / Asia Low)",
-		cBold+cRed, tvspoof.FormatDeskPrice(b.Playbook.InvalidationPrice, p), cReset), w)
-	printBoxRow(fmt.Sprintf("     • Target 1 (TP1)    : %s%s%s (Point of Control / Value Mean Reversion)",
-		cBold+cGreen, tvspoof.FormatDeskPrice(b.Playbook.Target1Price, p), cReset), w)
-	printBoxRow(fmt.Sprintf("     • Target 2 (TP2)    : %s%s%s (Day High / Liquidity Pool Expansion)",
-		cBold+cGreen, tvspoof.FormatDeskPrice(b.Playbook.Target2Price, p), cReset), w)
-	printBoxRow(fmt.Sprintf("     • Risk / Reward     : %s1 : %.2f%s  |  Est. Win Rate: %s%.1f%%%s  |  Size: %s%.2f Lots%s ($%.0f Account)",
-		cBold+cYellow, b.Playbook.RiskRewardRatio, cReset,
-		cBold+cGreen, b.Playbook.EstimatedWinRate, cReset,
-		cBold+cCyan, b.Playbook.RecommendedLots, cReset, balance), w)
-	printBoxRow(fmt.Sprintf("     • Max Risk Budget   : $%.2f (%.1f%%)  |  Expected Value (EV): %s+$%.2f%s  |  Edge: %s+EV Mathematical Edge%s",
-		b.Playbook.RiskAmountUSD, risk, cBold+cGreen, b.Playbook.ExpectedValueUSD, cReset, cBold+cGreen, cReset), w)
+	pb := b.Playbook
+	planColor := cGreen
+	if pb.Direction == "SHORT" {
+		planColor = cRed
+	} else if pb.Direction == "WAIT" {
+		planColor = cYellow
+	}
+	printBoxRow(fmt.Sprintf("     • Playbook Plan     : %s%s%s", cBold+planColor, pb.PrimaryPlan, cReset), w)
+	printBoxRow(fmt.Sprintf("     • Optimal Entry Zone: %s%s%s", cBold, pb.OptimalEntryZone, cReset), w)
+	printBoxRow(fmt.Sprintf("     • Invalidation (SL) : %s%s%s (Nearest swing / Asia extreme / value edge + 0.25 ATR, 1–3 ATR)",
+		cBold+cRed, tvspoof.FormatDeskPrice(pb.InvalidationPrice, p), cReset), w)
+	printBoxRow(fmt.Sprintf("     • Target 1 (TP1)    : %s%s%s (POC reversion, min 1.5R — close 50%%, SL → BEP)",
+		cBold+cGreen, tvspoof.FormatDeskPrice(pb.Target1Price, p), cReset), w)
+	printBoxRow(fmt.Sprintf("     • Target 2 (TP2)    : %s%s%s (PDH/PDL liquidity pool, min TP1 + 1.5R — runner)",
+		cBold+cGreen, tvspoof.FormatDeskPrice(pb.Target2Price, p), cReset), w)
+	printBoxRow(fmt.Sprintf("     • Risk / Reward     : %s1 : %.2f%s  |  P(TP1): %s%.1f%%%s  |  P(TP2|TP1): %.1f%%  |  Size: %s%.2f Lots%s",
+		cBold+cYellow, pb.RiskRewardRatio, cReset,
+		cBold+cGreen, pb.EstimatedWinRate, cReset, pb.RunnerProbability,
+		cBold+cCyan, pb.RecommendedLots, cReset), w)
+	evColor := cGreen
+	if pb.ExpectedValueUSD <= 0 {
+		evColor = cRed
+	}
+	riskNote := ""
+	if pb.RiskExceedsBudget {
+		riskNote = cRed + "  ⚠ 0.01 lot min exceeds budget" + cReset
+	}
+	printBoxRow(fmt.Sprintf("     • Risk at SL        : $%.2f (budget $%.2f = %.1f%%)  |  Margin: $%.2f%s",
+		pb.RiskAmountUSD, pb.RiskBudgetUSD, risk, pb.MarginRequiredUSD, riskNote), w)
+	printBoxRow(fmt.Sprintf("     • Expectancy        : %s%+.2fR ($%+.2f)%s  |  Source: %s",
+		cBold+evColor, pb.ExpectancyR, pb.ExpectedValueUSD, cReset, pb.WinRateSource), w)
+
+	// Score breakdown (non-zero weights only)
+	var parts []string
+	for _, c := range b.ScoreBreakdown {
+		if c.Weight == 0 {
+			continue
+		}
+		col := cGray
+		if c.Points > 0 {
+			col = cGreen
+		} else if c.Points < 0 {
+			col = cRed
+		}
+		parts = append(parts, fmt.Sprintf("%s%s %+.1f%s", col, c.Name, c.Points, cReset))
+	}
+	printBoxRow("     • Score Breakdown   : "+strings.Join(parts, "  "), w)
 	fmt.Println(cCyan + "╟" + strings.Repeat("─", w) + "╢" + cReset)
 
 	// Section 7: Economic Calendar Catalyst Watch

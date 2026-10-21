@@ -1,0 +1,1013 @@
+{
+  "generated_at": "2026-10-21T03:11:46Z",
+  "symbols": [
+    {
+      "symbol": "OANDA:XAUUSD",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 42,
+          "tp1_rate": 0.23809523809523808,
+          "runner_rate": 0.2,
+          "expectancy_r": -0.4759215319255001
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 42,
+          "tp1_rate": 0.30952380952380953,
+          "runner_rate": 0.8461538461538461,
+          "expectancy_r": 0.012359899077043459
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 178,
+          "tp1_rate": 0.34269662921348315,
+          "runner_rate": 0.4262295081967213,
+          "expectancy_r": 0.06328588248141559
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 248,
+          "tp1_rate": 0.43951612903225806,
+          "runner_rate": 0.46788990825688076,
+          "expectancy_r": 0.2455828544344041
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 73,
+          "tp1_rate": 0.3013698630136986,
+          "runner_rate": 0.36363636363636365,
+          "expectancy_r": -0.24759814548486236
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 77,
+          "tp1_rate": 0.44155844155844154,
+          "runner_rate": 0.5588235294117647,
+          "expectancy_r": 0.20976840536053468
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 138,
+          "tp1_rate": 0.41304347826086957,
+          "runner_rate": 0.3508771929824561,
+          "expectancy_r": 0.1303218683279092
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 475,
+          "tp1_rate": 0.3473684210526316,
+          "runner_rate": 0.4484848484848485,
+          "expectancy_r": -0.03982624546803445
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "BINANCE:BTCUSDT",
+      "from": "2026-08-02",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 189,
+          "tp1_rate": 0.37037037037037035,
+          "runner_rate": 0.4857142857142857,
+          "expectancy_r": 0.14664497016070574
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 262,
+          "tp1_rate": 0.36259541984732824,
+          "runner_rate": 0.4,
+          "expectancy_r": 0.14826113502097332
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 366,
+          "tp1_rate": 0.412568306010929,
+          "runner_rate": 0.2847682119205298,
+          "expectancy_r": 0.001273484102068881
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 461,
+          "tp1_rate": 0.3969631236442516,
+          "runner_rate": 0.41530054644808745,
+          "expectancy_r": 0.04728614850507604
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 145,
+          "tp1_rate": 0.2413793103448276,
+          "runner_rate": 0.2857142857142857,
+          "expectancy_r": -0.47745455292172356
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 145,
+          "tp1_rate": 0.3724137931034483,
+          "runner_rate": 0.3333333333333333,
+          "expectancy_r": -0.11134816400527896
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 173,
+          "tp1_rate": 0.2947976878612717,
+          "runner_rate": 0.37254901960784315,
+          "expectancy_r": -0.2882505361910763
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 165,
+          "tp1_rate": 0.37575757575757573,
+          "runner_rate": 0.5,
+          "expectancy_r": -0.06573229495569037
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "FX:EURUSD",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 59,
+          "tp1_rate": 0.288135593220339,
+          "runner_rate": 0.35294117647058826,
+          "expectancy_r": -0.4408839711204507
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 107,
+          "tp1_rate": 0.2897196261682243,
+          "runner_rate": 0.5806451612903226,
+          "expectancy_r": -0.21161949582683331
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 49,
+          "tp1_rate": 0.24489795918367346,
+          "runner_rate": 0.6666666666666666,
+          "expectancy_r": -0.33090144527956367
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 413,
+          "tp1_rate": 0.41646489104116224,
+          "runner_rate": 0.4186046511627907,
+          "expectancy_r": -0.004634918000664908
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 47,
+          "tp1_rate": 0.14893617021276595,
+          "runner_rate": 0.5714285714285714,
+          "expectancy_r": -0.5648285615809516
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 55,
+          "tp1_rate": 0.34545454545454546,
+          "runner_rate": 0.3157894736842105,
+          "expectancy_r": 0.3441912115928652
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 31,
+          "tp1_rate": 0.45161290322580644,
+          "runner_rate": 0.5,
+          "expectancy_r": 0.3470645563472984
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 572,
+          "tp1_rate": 0.42132867132867136,
+          "runner_rate": 0.45643153526970953,
+          "expectancy_r": 0.1024822617846311
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "FX:GBPUSD",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 57,
+          "tp1_rate": 0.45614035087719296,
+          "runner_rate": 0.5384615384615384,
+          "expectancy_r": 0.4368389714531061
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 52,
+          "tp1_rate": 0.46153846153846156,
+          "runner_rate": 0.5,
+          "expectancy_r": 0.07590725082114863
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 50,
+          "tp1_rate": 0.62,
+          "runner_rate": 0.5806451612903226,
+          "expectancy_r": 0.6037357558341552
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 431,
+          "tp1_rate": 0.3874709976798144,
+          "runner_rate": 0.40119760479041916,
+          "expectancy_r": -0.08551881225776398
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 93,
+          "tp1_rate": 0.3548387096774194,
+          "runner_rate": 0.21212121212121213,
+          "expectancy_r": -0.21588458705737587
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 42,
+          "tp1_rate": 0.5714285714285714,
+          "runner_rate": 0.25,
+          "expectancy_r": 0.3073643666174177
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 57,
+          "tp1_rate": 0.2807017543859649,
+          "runner_rate": 0.3125,
+          "expectancy_r": -0.24993959946257535
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 550,
+          "tp1_rate": 0.41818181818181815,
+          "runner_rate": 0.40869565217391307,
+          "expectancy_r": 0.16376334864542902
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "FX:USDJPY",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 117,
+          "tp1_rate": 0.3162393162393162,
+          "runner_rate": 0.5405405405405406,
+          "expectancy_r": -0.17378125323881582
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 81,
+          "tp1_rate": 0.35802469135802467,
+          "runner_rate": 0.4482758620689655,
+          "expectancy_r": -0.08233411288275132
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 64,
+          "tp1_rate": 0.59375,
+          "runner_rate": 0.3684210526315789,
+          "expectancy_r": 0.6130497836538078
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 466,
+          "tp1_rate": 0.33261802575107297,
+          "runner_rate": 0.3548387096774194,
+          "expectancy_r": -0.1823539815319165
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 71,
+          "tp1_rate": 0.352112676056338,
+          "runner_rate": 0.32,
+          "expectancy_r": -0.12209765091545897
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 90,
+          "tp1_rate": 0.4777777777777778,
+          "runner_rate": 0.3488372093023256,
+          "expectancy_r": 0.07140934336259848
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 106,
+          "tp1_rate": 0.4716981132075472,
+          "runner_rate": 0.32,
+          "expectancy_r": 0.21170037577072845
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 336,
+          "tp1_rate": 0.37797619047619047,
+          "runner_rate": 0.3858267716535433,
+          "expectancy_r": 0.12369316729392299
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "OANDA:XAGUSD",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 107,
+          "tp1_rate": 0.34579439252336447,
+          "runner_rate": 0.43243243243243246,
+          "expectancy_r": -0.12423896366588051
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 95,
+          "tp1_rate": 0.4421052631578947,
+          "runner_rate": 0.42857142857142855,
+          "expectancy_r": 0.5063550258304653
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 223,
+          "tp1_rate": 0.4663677130044843,
+          "runner_rate": 0.34615384615384615,
+          "expectancy_r": 0.16674811940403914
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 220,
+          "tp1_rate": 0.4,
+          "runner_rate": 0.3181818181818182,
+          "expectancy_r": -0.1160524972567319
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 32,
+          "tp1_rate": 0.4375,
+          "runner_rate": 0.5,
+          "expectancy_r": 0.09053150473089684
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 25,
+          "tp1_rate": 0.44,
+          "runner_rate": 0.45454545454545453,
+          "expectancy_r": 0.31803152945944435
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 107,
+          "tp1_rate": 0.2803738317757009,
+          "runner_rate": 0.5,
+          "expectancy_r": -0.13529181143170485
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 464,
+          "tp1_rate": 0.4245689655172414,
+          "runner_rate": 0.39086294416243655,
+          "expectancy_r": 0.07397455857595767
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "FX:AUDUSD",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 121,
+          "tp1_rate": 0.5206611570247934,
+          "runner_rate": 0.3333333333333333,
+          "expectancy_r": 0.21651216824557318
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 103,
+          "tp1_rate": 0.3883495145631068,
+          "runner_rate": 0.375,
+          "expectancy_r": 0.15090997532763556
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 71,
+          "tp1_rate": 0.4647887323943662,
+          "runner_rate": 0.6060606060606061,
+          "expectancy_r": 0.4191983248463517
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 428,
+          "tp1_rate": 0.3411214953271028,
+          "runner_rate": 0.4931506849315068,
+          "expectancy_r": -0.18157744775727752
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 53,
+          "tp1_rate": 0.39622641509433965,
+          "runner_rate": 0.38095238095238093,
+          "expectancy_r": -0.18609879349774536
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 24,
+          "tp1_rate": 0.5833333333333334,
+          "runner_rate": 0.7142857142857143,
+          "expectancy_r": 0.8934688855464118
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 32,
+          "tp1_rate": 0.3125,
+          "runner_rate": 0.4,
+          "expectancy_r": -0.3591685780407007
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 500,
+          "tp1_rate": 0.412,
+          "runner_rate": 0.3446601941747573,
+          "expectancy_r": -0.10488060234250043
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "FX:USDCAD",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 56,
+          "tp1_rate": 0.3392857142857143,
+          "runner_rate": 0.5263157894736842,
+          "expectancy_r": -0.16994498781232428
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 34,
+          "tp1_rate": 0.38235294117647056,
+          "runner_rate": 0.6923076923076923,
+          "expectancy_r": 0.4870651661414468
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 44,
+          "tp1_rate": 0.5454545454545454,
+          "runner_rate": 0.4583333333333333,
+          "expectancy_r": 0.2959052953962604
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 531,
+          "tp1_rate": 0.4726930320150659,
+          "runner_rate": 0.398406374501992,
+          "expectancy_r": 0.20175494021074364
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 67,
+          "tp1_rate": 0.44776119402985076,
+          "runner_rate": 0.6333333333333333,
+          "expectancy_r": 0.17805538340948207
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 83,
+          "tp1_rate": 0.4457831325301205,
+          "runner_rate": 0.6756756756756757,
+          "expectancy_r": 0.11377578209079324
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 64,
+          "tp1_rate": 0.46875,
+          "runner_rate": 0.3333333333333333,
+          "expectancy_r": 0.42662025535609915
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 451,
+          "tp1_rate": 0.44789356984478934,
+          "runner_rate": 0.5445544554455446,
+          "expectancy_r": 0.30729168709465554
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "FX:NZDUSD",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 93,
+          "tp1_rate": 0.3118279569892473,
+          "runner_rate": 0.5172413793103449,
+          "expectancy_r": -0.3081528028598384
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 65,
+          "tp1_rate": 0.35384615384615387,
+          "runner_rate": 0.391304347826087,
+          "expectancy_r": -0.014846467383185888
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 29,
+          "tp1_rate": 0.4482758620689655,
+          "runner_rate": 0.7692307692307693,
+          "expectancy_r": 0.31861439605099007
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 350,
+          "tp1_rate": 0.38285714285714284,
+          "runner_rate": 0.3208955223880597,
+          "expectancy_r": -0.1802347715813764
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 110,
+          "tp1_rate": 0.39090909090909093,
+          "runner_rate": 0.27906976744186046,
+          "expectancy_r": -0.12259307032268767
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 70,
+          "tp1_rate": 0.4714285714285714,
+          "runner_rate": 0.24242424242424243,
+          "expectancy_r": 0.15166300827328086
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 45,
+          "tp1_rate": 0.3111111111111111,
+          "runner_rate": 0.2857142857142857,
+          "expectancy_r": -0.3203917043344124
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 569,
+          "tp1_rate": 0.45694200351493847,
+          "runner_rate": 0.3730769230769231,
+          "expectancy_r": 0.0806543533787558
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "FX:USDCHF",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 103,
+          "tp1_rate": 0.2912621359223301,
+          "runner_rate": 0.23333333333333334,
+          "expectancy_r": -0.4825427291823293
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 85,
+          "tp1_rate": 0.32941176470588235,
+          "runner_rate": 0.5714285714285714,
+          "expectancy_r": -0.10936950095011772
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 92,
+          "tp1_rate": 0.3804347826086957,
+          "runner_rate": 0.2857142857142857,
+          "expectancy_r": -0.13799414577446778
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 636,
+          "tp1_rate": 0.31761006289308175,
+          "runner_rate": 0.36633663366336633,
+          "expectancy_r": -0.3297657965441122
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 51,
+          "tp1_rate": 0.3333333333333333,
+          "runner_rate": 0.35294117647058826,
+          "expectancy_r": -0.12866821448951085
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 51,
+          "tp1_rate": 0.21568627450980393,
+          "runner_rate": 0.7272727272727273,
+          "expectancy_r": -0.5665225896604824
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 24,
+          "tp1_rate": 0.4166666666666667,
+          "runner_rate": 0.5,
+          "expectancy_r": -0.09373847218382575
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 280,
+          "tp1_rate": 0.37857142857142856,
+          "runner_rate": 0.25471698113207547,
+          "expectancy_r": -0.23267886641324834
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "BINANCE:ETHUSDT",
+      "from": "2026-08-02",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 212,
+          "tp1_rate": 0.4056603773584906,
+          "runner_rate": 0.45348837209302323,
+          "expectancy_r": 0.31321237781069106
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 279,
+          "tp1_rate": 0.3942652329749104,
+          "runner_rate": 0.41818181818181815,
+          "expectancy_r": 0.39822997406805416
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 351,
+          "tp1_rate": 0.35327635327635326,
+          "runner_rate": 0.20967741935483872,
+          "expectancy_r": -0.20601666587531722
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 479,
+          "tp1_rate": 0.4384133611691023,
+          "runner_rate": 0.37142857142857144,
+          "expectancy_r": 0.10569523077067464
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 176,
+          "tp1_rate": 0.3125,
+          "runner_rate": 0.41818181818181815,
+          "expectancy_r": -0.2369923822336402
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 103,
+          "tp1_rate": 0.2912621359223301,
+          "runner_rate": 0.43333333333333335,
+          "expectancy_r": -0.12699571779074706
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 177,
+          "tp1_rate": 0.2655367231638418,
+          "runner_rate": 0.3404255319148936,
+          "expectancy_r": -0.33174419540402567
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 129,
+          "tp1_rate": 0.4728682170542636,
+          "runner_rate": 0.6229508196721312,
+          "expectancy_r": 0.4028869202818012
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    },
+    {
+      "symbol": "TVC:USOIL",
+      "from": "2026-08-04",
+      "to": "2026-10-20",
+      "buckets": [
+        {
+          "direction": "LONG",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 30,
+          "tp1_rate": 0.5333333333333333,
+          "runner_rate": 0.3125,
+          "expectancy_r": 0.31380551361530457
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 110,
+          "tp1_rate": 0.36363636363636365,
+          "runner_rate": 0.375,
+          "expectancy_r": -0.08431267256268409
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 467,
+          "tp1_rate": 0.41113490364025695,
+          "runner_rate": 0.4427083333333333,
+          "expectancy_r": 0.06396198871321522
+        },
+        {
+          "direction": "LONG",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 210,
+          "tp1_rate": 0.3523809523809524,
+          "runner_rate": 0.4189189189189189,
+          "expectancy_r": -0.0341042538302771
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 0,
+          "max_edge": 7,
+          "samples": 26,
+          "tp1_rate": 0.3076923076923077,
+          "runner_rate": 0.5,
+          "expectancy_r": 0.07960751484140936
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 8,
+          "max_edge": 14,
+          "samples": 84,
+          "tp1_rate": 0.44047619047619047,
+          "runner_rate": 0.32432432432432434,
+          "expectancy_r": -0.014950563355296584
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 15,
+          "max_edge": 24,
+          "samples": 228,
+          "tp1_rate": 0.2719298245614035,
+          "runner_rate": 0.22580645161290322,
+          "expectancy_r": -0.3962714405606641
+        },
+        {
+          "direction": "SHORT",
+          "min_edge": 25,
+          "max_edge": 50,
+          "samples": 118,
+          "tp1_rate": 0.3220338983050847,
+          "runner_rate": 0.2631578947368421,
+          "expectancy_r": -0.1978984484847669
+        }
+      ],
+      "settings": {
+        "bars": 10000,
+        "hold": 96,
+        "step": 4
+      }
+    }
+  ]
+}

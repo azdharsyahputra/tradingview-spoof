@@ -115,11 +115,20 @@ type TradePlaybook struct {
 	Target1Price      float64 `json:"target_1_price"`
 	Target2Price      float64 `json:"target_2_price"`
 	RiskRewardRatio   float64 `json:"risk_reward_ratio"`
-	EstimatedWinRate  float64 `json:"estimated_win_rate"` // Estimated statistical win probability (e.g. 74.0 for 74%)
+	EstimatedWinRate  float64 `json:"estimated_win_rate"` // P(TP1 before SL) in % (e.g. 54.0)
 	RecommendedLots   float64 `json:"recommended_lots"`
-	RiskAmountUSD     float64 `json:"risk_amount_usd"`
+	RiskAmountUSD     float64 `json:"risk_amount_usd"` // actual USD risk at RecommendedLots
 	ExpectedValueUSD  float64 `json:"expected_value_usd"`
 	ThesisSummary     string  `json:"thesis_summary"`
+
+	Direction          string  `json:"direction"`            // "LONG", "SHORT", or "WAIT" (no edge, plan shows the lean)
+	RiskBudgetUSD      float64 `json:"risk_budget_usd"`      // balance * risk%
+	RiskExceedsBudget  bool    `json:"risk_exceeds_budget"`  // 0.01 lot minimum risks more than the budget
+	MarginRequiredUSD  float64 `json:"margin_required_usd"`  // at 1:200
+	RunnerProbability  float64 `json:"runner_probability"`   // P(TP2 before BEP | TP1 hit) in %
+	ExpectancyR        float64 `json:"expectancy_r"`         // per trade, 50% off at TP1 + runner to TP2 with BEP stop
+	WinRateSource      string  `json:"win_rate_source"`      // "backtest calibration (n=..)" or "random-walk baseline"
+	CalibrationSamples int     `json:"calibration_samples,omitempty"`
 }
 
 // CandleMorphology holds exact mathematical proportions and geometric shape of a candle.
@@ -229,6 +238,7 @@ type DeskBriefing struct {
 	SMC             SMCMetrics             `json:"smc"`
 	Levels          InstitutionalLevelsMap `json:"levels"`
 	Playbook        TradePlaybook          `json:"playbook"`
+	ScoreBreakdown  []ScoreComponent       `json:"score_breakdown"`
 	UpcomingEvents  []CalendarEvent        `json:"upcoming_events"`
 }
 
@@ -242,7 +252,6 @@ func (c *Client) AnalyzeDesk(ctx context.Context, symbol string, balance float64
 	}
 
 	normSym := NormalizeDeskSymbol(symbol)
-	precision := DeterminePrecisionForSymbol(normSym)
 
 	var (
 		bars1M        []Bar
@@ -321,19 +330,75 @@ func (c *Client) AnalyzeDesk(ctx context.Context, symbol string, balance float64
 		barsD = nil
 	}
 
+	return BuildDeskBriefing(DeskInputs{
+		Symbol: normSym, Balance: balance, RiskPerc: riskPerc, Now: time.Now().UTC(),
+		Bars1M: bars1M, Bars5M: bars5M, Bars15M: bars15M, Bars1H: bars1H, Bars4H: bars4H, BarsD: barsD,
+		DXY: dxyBars, US10Y: us10yBars, RealYield: realYieldBars, SPX: spxBars, Silver: silverBars,
+		Events: events, Calibration: LoadCalibration(DefaultCalibrationPath),
+	}), nil
+}
+
+// DeskInputs is everything the desk engine needs. Bars must be sorted by time
+// and may include the still-forming candle as the last element; the engine
+// separates forming from closed candles using Now so structural signals never
+// repaint and the backtester can replay history without lookahead.
+type DeskInputs struct {
+	Symbol   string
+	Balance  float64
+	RiskPerc float64
+	Now      time.Time
+
+	Bars1M, Bars5M, Bars15M, Bars1H, Bars4H, BarsD []Bar
+	DXY, US10Y, RealYield, SPX, Silver              []Bar
+
+	Events      []CalendarEvent
+	Calibration *Calibration // optional empirical win-rate table from cmd/backtest
+}
+
+// BuildDeskBriefing runs the full analysis on pre-fetched bars.
+func BuildDeskBriefing(in DeskInputs) *DeskBriefing {
+	if in.Balance <= 0 {
+		in.Balance = 10000
+	}
+	if in.RiskPerc <= 0 || in.RiskPerc > 10 {
+		in.RiskPerc = 1.0
+	}
+	now := in.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	normSym := in.Symbol
+	precision := DeterminePrecisionForSymbol(normSym)
+
+	closed15M, _ := splitForming(in.Bars15M, 15*time.Minute, now)
+	closed1H, _ := splitForming(in.Bars1H, time.Hour, now)
+	closed4H, _ := splitForming(in.Bars4H, 4*time.Hour, now)
+
 	// 1. Current Price and Day Change
 	var currentPrice float64
-	var dayOpen float64
-	if len(bars1M) > 0 {
-		currentPrice = bars1M[len(bars1M)-1].Close
-	} else if len(bars15M) > 0 {
-		currentPrice = bars15M[len(bars15M)-1].Close
+	if len(in.Bars1M) > 0 {
+		currentPrice = in.Bars1M[len(in.Bars1M)-1].Close
+	} else if len(in.Bars15M) > 0 {
+		currentPrice = in.Bars15M[len(in.Bars15M)-1].Close
 	}
 
-	if len(barsD) > 0 {
-		dayOpen = barsD[len(barsD)-1].Open
-	} else if len(bars15M) > 0 {
-		dayOpen = bars15M[0].Open
+	// 2. Intermarket Radar
+	radar := calculateIntermarketRadar(normSym, in.DXY, in.US10Y, in.RealYield, in.SPX, in.Silver)
+
+	// 3. Multi-Timeframe Matrix on CLOSED candles only (a forming candle flips bias intrabar)
+	mtf := calculateMTFMatrix(
+		closedOnly(in.Bars1M, time.Minute, now), closedOnly(in.Bars5M, 5*time.Minute, now), closed15M,
+		closed1H, closed4H, closedOnly(in.BarsD, 24*time.Hour, now), precision)
+
+	// 4. Volume Profile (the forming bar's traded volume is real, keep it)
+	vProfile := calculateVolumeProfile(in.Bars15M, precision)
+
+	// 5. Session Liquidity & Sweeps
+	liq := calculateSessionLiquidity(in.Bars15M, in.BarsD, currentPrice, now)
+
+	dayOpen := liq.DailyOpen
+	if dayOpen <= 0 && len(in.Bars15M) > 0 {
+		dayOpen = in.Bars15M[0].Open
 	}
 	dayChg := currentPrice - dayOpen
 	dayChgPerc := 0.0
@@ -341,73 +406,83 @@ func (c *Client) AnalyzeDesk(ctx context.Context, symbol string, balance float64
 		dayChgPerc = (dayChg / dayOpen) * 100
 	}
 
-	// 2. Compute Intermarket Radar
-	radar := calculateIntermarketRadar(normSym, dxyBars, us10yBars, realYieldBars, spxBars, silverBars)
+	// 6. SMC & Market Structure (closed candles only)
+	smc := calculateSMC(closed15M, closed1H, closed4H, currentPrice, precision)
 
-	// 3. Compute Multi-Timeframe Matrix (M1, M5, M15, H1, H4, D1)
-	mtf := calculateMTFMatrix(bars1M, bars5M, bars15M, bars1H, bars4H, barsD, precision)
+	// 7. Institutional S/R & Supply/Demand Levels
+	levels := calculateInstitutionalLevels(in.Bars1M, in.Bars15M, in.Bars1H, in.Bars4H, in.BarsD, currentPrice, vProfile, liq, smc, precision)
 
-	// 4. Compute Volume Profile
-	vProfile := calculateVolumeProfile(bars15M, precision)
-
-	// 5. Compute Session Liquidity & Sweeps
-	liq := calculateSessionLiquidity(bars15M, barsD, currentPrice)
-
-	// 6. Compute SMC & Market Structure
-	smc := calculateSMC(bars15M, bars1H, bars4H, currentPrice)
-
-	// 7. Compute Institutional S/R & Supply/Demand Levels
-	levels := calculateInstitutionalLevels(bars1M, bars15M, bars1H, bars4H, barsD, currentPrice, vProfile, liq, smc, precision)
-
-	// 8. Compute ATR and Risk/Playbook
-	atr15M := calculateATR(bars15M, 14)
+	// 8. ATR (Wilder) on closed M15
+	atr15M := calculateATR(closed15M, 14)
 	if atr15M <= 0 {
 		atr15M = currentPrice * 0.002
 	}
 
-	// 9. Compute EMA 50 on H1 for trend filter
-	ema50H1 := calculateEMA(bars1H, 50)
-
-	// 10. Compute RSI 14 on M15 for momentum filter
-	rsi14M15 := calculateRSI(bars15M, 14)
+	si := scoreInputs{
+		CurrentPrice: currentPrice, Radar: radar, MTF: mtf, VP: vProfile, Liq: liq, SMC: smc,
+		EMA50H1: calculateEMA(closed1H, 50), RSI14M15: calculateRSI(closed15M, 14), ATR: atr15M,
+		Closed15M: closed15M, Closed4H: closed4H, ClosedD: closedOnly(in.BarsD, 24*time.Hour, now),
+	}
 
 	briefing := synthesizeDeskBriefing(
 		normSym, currentPrice, dayChg, dayChgPerc, precision,
-		radar, mtf, vProfile, liq, smc, levels, atr15M, balance, riskPerc, events,
-		ema50H1, rsi14M15,
+		radar, mtf, vProfile, liq, smc, levels, atr15M, in.Balance, in.RiskPerc, in.Events,
+		si, now, in.Calibration,
 	)
+	return briefing
+}
 
-	return briefing, nil
+// splitForming separates the still-forming last candle from closed candles.
+// A candle is closed once a later candle exists or its nominal duration elapsed.
+func splitForming(bars []Bar, dur time.Duration, now time.Time) ([]Bar, *Bar) {
+	if len(bars) == 0 {
+		return bars, nil
+	}
+	last := bars[len(bars)-1]
+	if time.Unix(last.Time, 0).Add(dur).After(now) {
+		return bars[:len(bars)-1], &last
+	}
+	return bars, nil
+}
+
+func closedOnly(bars []Bar, dur time.Duration, now time.Time) []Bar {
+	closed, _ := splitForming(bars, dur, now)
+	return closed
 }
 
 func calculateIntermarketRadar(targetSym string, dxy, us10y, realYield, spx, silver []Bar) IntermarketRadar {
 	var radar IntermarketRadar
 	isGold := strings.Contains(targetSym, "XAU") || strings.Contains(targetSym, "GOLD")
+	isMetal := isPreciousMetal(targetSym)
+	usdSign := usdExposure(targetSym)
 	useRealYield := len(realYield) >= 21
 	sentimentAccum := 0.0
 	factors := 0.0
 
-	// DXY
+	// DXY: scored according to the symbol's USD leg (quote USD = weak dollar
+	// bullish, base USD = strong dollar bullish, no USD leg = not scored).
 	if len(dxy) >= 2 {
 		last := dxy[len(dxy)-1]
 		first := dxy[0]
 		chg := last.Close - first.Open
 		pct := (chg / first.Open) * 100
 		impact := "Neutral"
-		if isGold {
-			if pct < -0.05 {
-				impact = "🟢 Bullish Tailwind (Weak USD)"
+		if usdSign != 0 {
+			// Weak dollar (pct < 0) is a tailwind when USD is the quote currency.
+			favour := -pct * usdSign
+			if favour > 0.05 {
+				impact = "🟢 Bullish Tailwind (USD move favours asset)"
 				sentimentAccum += 0.35
-			} else if pct > 0.05 {
-				impact = "🔴 Bearish Headwind (Strong USD)"
+			} else if favour < -0.05 {
+				impact = "🔴 Bearish Headwind (USD move against asset)"
 				sentimentAccum -= 0.35
 			}
+			factors += 0.35
 		}
 		radar.DXY = &MacroAsset{
 			Symbol: "TVC:DXY", Name: "US Dollar Index", Price: last.Close,
 			Change: chg, ChangePerc: pct, ImpactOnSym: impact,
 		}
-		factors += 0.35
 	}
 
 	// US10Y
@@ -417,7 +492,7 @@ func calculateIntermarketRadar(targetSym string, dxy, us10y, realYield, spx, sil
 		chg := last.Close - first.Open
 		pct := (chg / first.Open) * 100
 		impact := "Neutral"
-		if isGold {
+		if isMetal {
 			if useRealYield {
 				impact = "Reference only (real yield used in macro score)"
 			} else if pct < -0.2 {
@@ -432,7 +507,7 @@ func calculateIntermarketRadar(targetSym string, dxy, us10y, realYield, spx, sil
 			Symbol: "TVC:US10Y", Name: "US 10Y Nominal Yield", Price: last.Close,
 			Change: chg, ChangePerc: pct, ImpactOnSym: impact,
 		}
-		if !useRealYield {
+		if !useRealYield && isMetal {
 			factors += 0.30
 		}
 	}
@@ -454,7 +529,7 @@ func calculateIntermarketRadar(targetSym string, dxy, us10y, realYield, spx, sil
 			pct = (chg / math.Abs(first.Close)) * 100
 		}
 		impact := "Neutral (real yields broadly stable)"
-		if isGold {
+		if isMetal {
 			// A 10 bp monthly move is treated as a macro regime shift, not an
 			// entry trigger. Smaller moves do not add directional conviction.
 			if chgBps <= -10 {
@@ -474,28 +549,38 @@ func calculateIntermarketRadar(targetSym string, dxy, us10y, realYield, spx, sil
 			Change: chg, ChangePerc: pct, ChangeBps: chgBps,
 			Lookback: fmt.Sprintf("%d daily observations", lookback), AsOf: asOf, ImpactOnSym: impact,
 		}
-		factors += 0.30
+		if isMetal {
+			factors += 0.30
+		}
 	}
 
-	// SPX (Risk sentiment)
+	// SPX (Risk sentiment): risk-off favours metals, risk-on favours risk assets.
 	if len(spx) >= 2 {
 		last := spx[len(spx)-1]
 		first := spx[0]
 		chg := last.Close - first.Open
 		pct := (chg / first.Open) * 100
 		impact := "Neutral"
+		riskSign := 0.0
+		if isMetal {
+			riskSign = -1
+		} else if isRiskAsset(targetSym) {
+			riskSign = 1
+		}
 		if pct > 0.2 {
 			impact = "Risk-On (Equities Rallying)"
-			sentimentAccum += 0.15
+			sentimentAccum += 0.15 * riskSign
 		} else if pct < -0.2 {
 			impact = "Risk-Off (Safe Haven Inflows)"
-			sentimentAccum += 0.20
+			sentimentAccum -= 0.15 * riskSign
 		}
 		radar.SPX = &MacroAsset{
 			Symbol: "TVC:SPX", Name: "S&P 500", Price: last.Close,
 			Change: chg, ChangePerc: pct, ImpactOnSym: impact,
 		}
-		factors += 0.15
+		if riskSign != 0 {
+			factors += 0.15
+		}
 	}
 
 	// Silver (Precious Metal Confirmation)
@@ -531,9 +616,9 @@ func calculateIntermarketRadar(targetSym string, dxy, us10y, realYield, spx, sil
 	}
 
 	if radar.SentimentScore >= 0.25 {
-		radar.MacroRegime = "🟢 Bullish Macro Tailwind (Weak Dollar & Supportive Yields)"
+		radar.MacroRegime = "🟢 Bullish Macro Tailwind for " + targetSym
 	} else if radar.SentimentScore <= -0.25 {
-		radar.MacroRegime = "🔴 Bearish Macro Headwind (Strong Dollar & Pressure on Metals)"
+		radar.MacroRegime = "🔴 Bearish Macro Headwind for " + targetSym
 	} else {
 		radar.MacroRegime = "🟡 Neutral / Mixed Macro Environment"
 	}
@@ -661,91 +746,79 @@ func calculateVolumeProfile(bars []Bar, precision int) VolumeProfile {
 	}
 }
 
-func calculateSessionLiquidity(bars15M, barsD []Bar, currentPrice float64) SessionLiquidity {
+func calculateSessionLiquidity(bars15M, barsD []Bar, currentPrice float64, now time.Time) SessionLiquidity {
 	var liq SessionLiquidity
 
-	if len(barsD) >= 2 {
-		yesterday := barsD[len(barsD)-2]
+	closedD, formingD := splitForming(barsD, 24*time.Hour, now)
+	if len(closedD) > 0 {
+		yesterday := closedD[len(closedD)-1]
 		liq.PDH = yesterday.High
 		liq.PDL = yesterday.Low
 		liq.PDC = yesterday.Close
 	}
-
-	if len(barsD) > 0 {
-		liq.DailyOpen = barsD[len(barsD)-1].Open
+	if formingD != nil {
+		liq.DailyOpen = formingD.Open
 	}
 
-	// Determine current trading day from the latest bar
-	var currentDay int
-	if len(bars15M) > 0 {
-		currentDay = time.Unix(bars15M[len(bars15M)-1].Time, 0).UTC().YearDay()
+	if len(bars15M) == 0 {
+		return liq
 	}
+	closed15M, _ := splitForming(bars15M, 15*time.Minute, now)
 
-	// Calculate Asian Session (00:00 to 08:00 UTC of current day)
-	var asiaHigh, asiaLow float64
-	hasAsia := false
+	// Current trading day = UTC calendar date of the latest bar.
+	dayKey := func(ts int64) string { return time.Unix(ts, 0).UTC().Format("2006-01-02") }
+	today := dayKey(bars15M[len(bars15M)-1].Time)
 
+	hasAsia, hasLondon := false, false
 	for _, b := range bars15M {
 		t := time.Unix(b.Time, 0).UTC()
-		if t.YearDay() == currentDay && t.Hour() >= 0 && t.Hour() < 8 {
+		if dayKey(b.Time) != today {
+			continue
+		}
+		if liq.DailyOpen <= 0 {
+			liq.DailyOpen = b.Open
+		}
+		// Asian Session (00:00 to 08:00 UTC of current day)
+		if t.Hour() < 8 {
 			if !hasAsia {
-				asiaHigh = b.High
-				asiaLow = b.Low
-				hasAsia = true
+				liq.AsiaHigh, liq.AsiaLow, hasAsia = b.High, b.Low, true
 			} else {
-				if b.High > asiaHigh {
-					asiaHigh = b.High
-				}
-				if b.Low < asiaLow {
-					asiaLow = b.Low
-				}
+				liq.AsiaHigh = math.Max(liq.AsiaHigh, b.High)
+				liq.AsiaLow = math.Min(liq.AsiaLow, b.Low)
+			}
+		}
+		// London Session (08:00 to 16:00 UTC of current day)
+		if t.Hour() >= 8 && t.Hour() < 16 {
+			if !hasLondon {
+				liq.LondonHigh, liq.LondonLow, hasLondon = b.High, b.Low, true
+			} else {
+				liq.LondonHigh = math.Max(liq.LondonHigh, b.High)
+				liq.LondonLow = math.Min(liq.LondonLow, b.Low)
 			}
 		}
 	}
 
-	liq.AsiaHigh = asiaHigh
-	liq.AsiaLow = asiaLow
-
-	// Detect Asia Liquidity Sweeps (only on current day after Asia session closes at 08:00 UTC)
-	for _, b := range bars15M {
-		t := time.Unix(b.Time, 0).UTC()
-		if t.YearDay() == currentDay && t.Hour() >= 8 && hasAsia {
-			if b.Low < asiaLow && b.Close > asiaLow {
+	// Asia Liquidity Sweeps: a CLOSED post-Asia candle wicks through the Asian
+	// extreme and closes back inside the range.
+	if hasAsia {
+		for _, b := range closed15M {
+			t := time.Unix(b.Time, 0).UTC()
+			if dayKey(b.Time) != today || t.Hour() < 8 {
+				continue
+			}
+			if b.Low < liq.AsiaLow && b.Close > liq.AsiaLow {
 				liq.AsiaSweptLow = true
 			}
-			if b.High > asiaHigh && b.Close < asiaHigh {
+			if b.High > liq.AsiaHigh && b.Close < liq.AsiaHigh {
 				liq.AsiaSweptHigh = true
 			}
 		}
 	}
 
-	// Calculate London Session (08:00 to 16:00 UTC)
-	var londonHigh, londonLow float64
-	hasLondon := false
-	for _, b := range bars15M {
-		t := time.Unix(b.Time, 0).UTC()
-		if t.Hour() >= 8 && t.Hour() < 16 {
-			if !hasLondon {
-				londonHigh = b.High
-				londonLow = b.Low
-				hasLondon = true
-			} else {
-				if b.High > londonHigh {
-					londonHigh = b.High
-				}
-				if b.Low < londonLow {
-					londonLow = b.Low
-				}
-			}
-		}
-	}
-	liq.LondonHigh = londonHigh
-	liq.LondonLow = londonLow
-
 	return liq
 }
 
-func calculateSMC(bars15M, bars1H, bars4H []Bar, currentPrice float64) SMCMetrics {
+func calculateSMC(bars15M, bars1H, bars4H []Bar, currentPrice float64, precision int) SMCMetrics {
 	var smc SMCMetrics
 
 	if len(bars15M) < 10 {
@@ -767,26 +840,58 @@ func calculateSMC(bars15M, bars1H, bars4H []Bar, currentPrice float64) SMCMetric
 	eq := (recentHigh + recentLow) / 2
 	smc.Equilibrium50 = eq
 
-	if currentPrice < eq {
+	// Premium / Discount with a +/-5% equilibrium band around the 50% level.
+	band := (recentHigh - recentLow) * 0.05
+	if currentPrice < eq-band {
 		smc.PricingZone = "🟢 DISCOUNT (Favorable for Long Accumulation)"
-	} else {
+	} else if currentPrice > eq+band {
 		smc.PricingZone = "🔴 PREMIUM (Favorable for Short Distribution)"
+	} else {
+		smc.PricingZone = "🟡 EQUILIBRIUM (Fair Value, No Edge)"
 	}
 
-	// 2. FVG (Fair Value Gap) Detection on M15
+	// 2. FVG (Fair Value Gap) Detection on M15 — only gaps that later price
+	// action has NOT fully filled are reported; UnfilledFVGPrice is the
+	// nearest unfilled gap edge to the current price.
+	nearestFVG := 0.0
+	considerFVG := func(edge float64) {
+		if nearestFVG == 0 || math.Abs(edge-currentPrice) < math.Abs(nearestFVG-currentPrice) {
+			nearestFVG = edge
+		}
+	}
 	for i := 2; i < len(bars15M); i++ {
 		// Bullish FVG: Low of candle i > High of candle i-2
 		if bars15M[i].Low > bars15M[i-2].High && bars15M[i-1].Close > bars15M[i-2].High {
-			gapStr := fmt.Sprintf("%.2f - %.2f", bars15M[i-2].High, bars15M[i].Low)
-			smc.BullishFVGs = append(smc.BullishFVGs, gapStr)
-			smc.UnfilledFVGPrice = bars15M[i-2].High
+			bottom, top := bars15M[i-2].High, bars15M[i].Low
+			filled := false
+			for j := i + 1; j < len(bars15M); j++ {
+				if bars15M[j].Low <= bottom {
+					filled = true
+					break
+				}
+			}
+			if !filled {
+				smc.BullishFVGs = append(smc.BullishFVGs, fmt.Sprintf("%.*f - %.*f", precision, bottom, precision, top))
+				considerFVG(bottom)
+			}
 		}
 		// Bearish FVG: High of candle i < Low of candle i-2
 		if bars15M[i].High < bars15M[i-2].Low && bars15M[i-1].Close < bars15M[i-2].Low {
-			gapStr := fmt.Sprintf("%.2f - %.2f", bars15M[i].High, bars15M[i-2].Low)
-			smc.BearishFVGs = append(smc.BearishFVGs, gapStr)
+			bottom, top := bars15M[i].High, bars15M[i-2].Low
+			filled := false
+			for j := i + 1; j < len(bars15M); j++ {
+				if bars15M[j].High >= top {
+					filled = true
+					break
+				}
+			}
+			if !filled {
+				smc.BearishFVGs = append(smc.BearishFVGs, fmt.Sprintf("%.*f - %.*f", precision, bottom, precision, top))
+				considerFVG(top)
+			}
 		}
 	}
+	smc.UnfilledFVGPrice = nearestFVG
 
 	// 3. Order Block (OB) Detection
 	// Bullish OB: Last bearish candle before a strong bullish impulse (3+ candle move up)
@@ -799,7 +904,7 @@ func calculateSMC(bars15M, bars1H, bars4H []Bar, currentPrice float64) SMCMetric
 		if isBearishCandle {
 			impulseUp := bars15M[i+1].Close > bars15M[i].High && bars15M[i+2].Close > bars15M[i+1].High
 			if impulseUp {
-				smc.BullishOB = fmt.Sprintf("%.2f - %.2f", bars15M[i].Low, bars15M[i].High)
+				smc.BullishOB = fmt.Sprintf("%.*f - %.*f", precision, bars15M[i].Low, precision, bars15M[i].High)
 			}
 		}
 
@@ -807,7 +912,7 @@ func calculateSMC(bars15M, bars1H, bars4H []Bar, currentPrice float64) SMCMetric
 		if isBullishCandle {
 			impulseDown := bars15M[i+1].Close < bars15M[i].Low && bars15M[i+2].Close < bars15M[i+1].Low
 			if impulseDown {
-				smc.BearishOB = fmt.Sprintf("%.2f - %.2f", bars15M[i].Low, bars15M[i].High)
+				smc.BearishOB = fmt.Sprintf("%.*f - %.*f", precision, bars15M[i].Low, precision, bars15M[i].High)
 			}
 		}
 	}
@@ -938,9 +1043,9 @@ func calculateSMC(bars15M, bars1H, bars4H []Bar, currentPrice float64) SMCMetric
 		}
 
 		if smc.StructureSeq.LastHigh.Price > 0 && smc.StructureSeq.LastLow.Price > 0 {
-			smc.StructureSeq.SequenceFlow = fmt.Sprintf("%s (%.2f) ➔ %s (%.2f)",
-				smc.StructureSeq.LastHigh.Type, smc.StructureSeq.LastHigh.Price,
-				smc.StructureSeq.LastLow.Type, smc.StructureSeq.LastLow.Price)
+			smc.StructureSeq.SequenceFlow = fmt.Sprintf("%s (%.*f) ➔ %s (%.*f)",
+				smc.StructureSeq.LastHigh.Type, precision, smc.StructureSeq.LastHigh.Price,
+				smc.StructureSeq.LastLow.Type, precision, smc.StructureSeq.LastLow.Price)
 		}
 
 		// Check BOS: does current price break last swing high (bullish) or low (bearish)?
@@ -982,15 +1087,16 @@ func calculateSMC(bars15M, bars1H, bars4H []Bar, currentPrice float64) SMCMetric
 		}
 	}
 
-	// 6. Market Structure & CISD Bias using Swing High/Low Breaks
+	// 6. Market Structure & CISD Bias: the last CLOSED candle closes beyond the
+	// extreme of the preceding 5 candles (the candle itself is excluded, a
+	// close can never exceed its own high).
 	lookback := 5
-	if lookback > len(bars15M)-2 {
-		lookback = len(bars15M) - 2
+	if lookback > len(bars15M)-1 {
+		lookback = len(bars15M) - 1
 	}
-
-	recentSwingHigh := bars15M[len(bars15M)-1].High
-	recentSwingLow := bars15M[len(bars15M)-1].Low
-	for i := len(bars15M) - lookback; i < len(bars15M); i++ {
+	recentSwingHigh := bars15M[len(bars15M)-2].High
+	recentSwingLow := bars15M[len(bars15M)-2].Low
+	for i := len(bars15M) - 1 - lookback; i < len(bars15M)-1; i++ {
 		if bars15M[i].High > recentSwingHigh {
 			recentSwingHigh = bars15M[i].High
 		}
@@ -1122,258 +1228,188 @@ func calculateRSI(bars []Bar, period int) float64 {
 	return 100 - (100 / (1 + rs))
 }
 
-func synthesizeDeskBriefing(
-	symbol string, currentPrice, dayChg, dayChgPerc float64, precision int,
-	radar IntermarketRadar, mtf MTFMatrix, vp VolumeProfile, liq SessionLiquidity, smc SMCMetrics,
-	levels InstitutionalLevelsMap,
-	atr15M float64, balance, riskPerc float64, events []CalendarEvent,
-	ema50H1 float64, rsi14M15 float64,
-) *DeskBriefing {
-	// Calculate Quantitative Conviction Score (0 - 100)
-	// Score > 50 = Bullish bias, Score < 50 = Bearish bias
-	// Distance from 50 = strength of conviction
-	score := 50 // baseline (neutral)
+// ScoreComponent is one additive input of the conviction score.
+type ScoreComponent struct {
+	Name   string  `json:"name"`
+	Signal float64 `json:"signal"` // -1 (bearish) .. +1 (bullish)
+	Weight float64 `json:"weight"` // max absolute score points
+	Points float64 `json:"points"` // Signal * Weight
+	Detail string  `json:"detail,omitempty"`
+}
 
-	// --- MACRO CONTRIBUTION (+/- 15) ---
-	score += int(radar.SentimentScore * 15)
+// Score component weights (max absolute points). Signals are normalised to
+// [-1, 1]. Weights come from the cmd/backtest factor audit (Aug–Oct 2026,
+// 12 symbols, ~17k walk-forward decisions; selected on 6 symbols, confirmed on
+// 6 held-out symbols): only factors whose forward-return t-stat kept the same
+// positive sign in-sample, out-of-sample and out-of-asset carry weight.
+//
+// Zeroed after the audit: asia_sweep (t -4.9 IS / -4.0 held-out: sweeps of the
+// Asian range tended to continue, not reverse), rsi_extreme (oversold kept
+// falling), ema50_h1 (flipped sign between halves), pricing_zone (negative
+// in-sample on both symbol sets). Zero-weight factors stay in the breakdown so
+// the audit can keep tracking them.
+var deskScoreWeights = map[string]float64{
+	"macro":         15,
+	"d1_trend":      12,
+	"h4_trend":      8,
+	"structure":     8,
+	"value_area":    5,
+	"mtf":           4,
+	"asia_sweep":    0,
+	"pricing_zone":  0,
+	"ema50_h1":      0,
+	"rsi_extreme":   0,
+	"fresh_sweep":   0,
+	"momentum_4h":   0,
+	"poc_reversion": 0,
+}
 
-	// --- MTF CONFLUENCE CONTRIBUTION (+/- 12) ---
-	mtfNet := mtf.BullishCount - mtf.BearishCount
-	score += int(float64(mtfNet) * 2.0)
+// deskNeutralBand: |score-50| below this is treated as no edge (WAIT).
+var deskNeutralBand = 8
 
-	// --- VOLUME PROFILE CONTRIBUTION (+/- 10) ---
-	if vp.POC > 0 && vp.VAL > 0 && vp.VAH > 0 {
-		if currentPrice >= vp.VAL && currentPrice <= vp.POC {
-			score += 10 // Long: in value discount, mean reversion up likely
-		} else if currentPrice > vp.POC && currentPrice <= vp.VAH {
-			score -= 5 // Slight bearish: above POC, may revert down
-		} else if currentPrice > vp.VAH {
-			score -= 10 // Bearish: overextended above VAH, short favorable
-		} else if currentPrice < vp.VAL {
-			score += 5 // Bullish if just below VAL (deep discount), but risky
-		}
+// scoreInputs carries everything the conviction score reads. Bar slices are
+// closed candles only.
+type scoreInputs struct {
+	CurrentPrice float64
+	Radar        IntermarketRadar
+	MTF          MTFMatrix
+	VP           VolumeProfile
+	Liq          SessionLiquidity
+	SMC          SMCMetrics
+	EMA50H1      float64
+	RSI14M15     float64
+	ATR          float64
+	Closed15M    []Bar
+	Closed4H     []Bar
+	ClosedD      []Bar
+}
+
+func scoreDesk(si scoreInputs) (int, []ScoreComponent) {
+	currentPrice, radar, mtf, vp, liq, smc := si.CurrentPrice, si.Radar, si.MTF, si.VP, si.Liq, si.SMC
+	ema50H1, rsi14M15 := si.EMA50H1, si.RSI14M15
+	var comps []ScoreComponent
+	add := func(name string, signal float64, detail string) {
+		w := deskScoreWeights[name]
+		signal = math.Max(-1, math.Min(1, signal))
+		comps = append(comps, ScoreComponent{Name: name, Signal: signal, Weight: w, Points: signal * w, Detail: detail})
 	}
 
-	// --- LIQUIDITY SWEEP CONTRIBUTION (+/- 15) ---
+	add("macro", radar.SentimentScore, radar.MacroRegime)
+
+	frames := float64(mtf.BullishCount + mtf.BearishCount + mtf.NeutralCount)
+	if frames > 0 {
+		add("mtf", float64(mtf.BullishCount-mtf.BearishCount)/frames, mtf.AlignmentSummary)
+	}
+
+	if vp.POC > 0 && vp.VAL > 0 && vp.VAH > 0 {
+		sig, detail := 0.0, ""
+		switch {
+		case currentPrice >= vp.VAL && currentPrice <= vp.POC:
+			sig, detail = 1, "Inside value below POC (reversion up to POC)"
+		case currentPrice > vp.POC && currentPrice <= vp.VAH:
+			sig, detail = -0.5, "Inside value above POC"
+		case currentPrice > vp.VAH:
+			sig, detail = -1, "Above VAH (overextended)"
+		case currentPrice < vp.VAL:
+			sig, detail = 0.5, "Below VAL (deep discount)"
+		}
+		add("value_area", sig, detail)
+	}
+
+	sweep := 0.0
 	if liq.AsiaSweptLow {
-		score += 15 // Bullish: sell-side liquidity grabbed, reversal up likely
+		sweep++
 	}
 	if liq.AsiaSweptHigh {
-		score -= 15 // Bearish: buy-side liquidity grabbed, reversal down likely
+		sweep--
 	}
+	add("asia_sweep", sweep, fmt.Sprintf("swept low=%v high=%v", liq.AsiaSweptLow, liq.AsiaSweptHigh))
 
-	// --- SMC PRICING ZONE (+/- 10) ---
+	zone := 0.0
 	if strings.Contains(smc.PricingZone, "DISCOUNT") {
-		score += 10 // Bullish: price in discount zone
+		zone = 1
 	} else if strings.Contains(smc.PricingZone, "PREMIUM") {
-		score -= 10 // Bearish: price in premium zone
+		zone = -1
 	}
+	add("pricing_zone", zone, smc.PricingZone)
 
-	// --- MARKET STRUCTURE / CISD BIAS (+/- 8) ---
+	structure := 0.0
 	switch smc.CISDBias {
 	case "Bullish":
-		score += 8
+		structure = 1
 	case "Neutral-Bullish":
-		score += 4
+		structure = 0.5
 	case "Bearish":
-		score -= 8
+		structure = -1
 	case "Neutral-Bearish":
-		score -= 4
+		structure = -0.5
 	}
+	add("structure", structure, smc.MarketStructure)
 
-	// --- EMA TREND FILTER (+/- 5) ---
 	if ema50H1 > 0 {
+		sig := -1.0
 		if currentPrice > ema50H1 {
-			score += 5 // Bullish: price above H1 EMA 50
-		} else {
-			score -= 5 // Bearish: price below H1 EMA 50
+			sig = 1
 		}
+		add("ema50_h1", sig, fmt.Sprintf("EMA50 H1 %.2f", ema50H1))
 	}
 
-	// --- RSI MOMENTUM (+/- 5) ---
-	if rsi14M15 > 0 {
-		if rsi14M15 < 30 {
-			score += 5 // Oversold bounce potential (bullish)
-		} else if rsi14M15 > 70 {
-			score -= 5 // Overbought reversal potential (bearish)
-		}
+	rsiSig := 0.0
+	if rsi14M15 < 30 {
+		rsiSig = 1
+	} else if rsi14M15 > 70 {
+		rsiSig = -1
 	}
+	add("rsi_extreme", rsiSig, fmt.Sprintf("RSI14 M15 %.1f", rsi14M15))
 
-	// Clamp score
+	addCandidateFactors(si, add)
+
+	total := 50.0
+	for _, c := range comps {
+		total += c.Points
+	}
+	score := int(math.Round(total))
 	if score > 95 {
 		score = 95
 	}
 	if score < 5 {
 		score = 5
 	}
+	return score, comps
+}
 
-	// Determine Conviction Grade & Bias Direction
-	var grade string
-	var bias string
-	isBullish := score >= 50
+func synthesizeDeskBriefing(
+	symbol string, currentPrice, dayChg, dayChgPerc float64, precision int,
+	radar IntermarketRadar, mtf MTFMatrix, vp VolumeProfile, liq SessionLiquidity, smc SMCMetrics,
+	levels InstitutionalLevelsMap,
+	atr15M float64, balance, riskPerc float64, events []CalendarEvent,
+	si scoreInputs, now time.Time, calib *Calibration,
+) *DeskBriefing {
+	// Score > 50 = Bullish bias, Score < 50 = Bearish bias; distance from 50 = strength.
+	score, breakdown := scoreDesk(si)
 
-	if score >= 80 {
-		grade = "A+"
-		bias = "STRONG BULLISH"
-	} else if score >= 70 {
-		grade = "A"
-		bias = "BULLISH"
-	} else if score >= 60 {
-		grade = "B+"
-		bias = "MODERATE BULLISH"
-	} else if score >= 45 {
-		grade = "B"
-		bias = "NEUTRAL / RANGE"
-	} else if score >= 35 {
-		grade = "B-"
-		bias = "MODERATE BEARISH"
-	} else if score >= 25 {
-		grade = "A"
-		bias = "BEARISH"
-	} else {
-		grade = "A+"
-		bias = "STRONG BEARISH"
+	var grade, bias string
+	switch {
+	case score >= 80:
+		grade, bias = "A+", "STRONG BULLISH"
+	case score >= 70:
+		grade, bias = "A", "BULLISH"
+	case score >= 50+deskNeutralBand:
+		grade, bias = "B+", "MODERATE BULLISH"
+	case score > 50-deskNeutralBand:
+		grade, bias = "C", "NEUTRAL / RANGE"
+	case score > 30:
+		grade, bias = "B+", "MODERATE BEARISH"
+	case score > 20:
+		grade, bias = "A", "BEARISH"
+	default:
+		grade, bias = "A+", "STRONG BEARISH"
 	}
 
-	// Risk Calculation & Institutional Playbook (BI-DIRECTIONAL)
-	riskUSD := balance * (riskPerc / 100.0)
-
-	contractMult := 100.0
-	if !strings.Contains(symbol, "XAU") && !strings.Contains(symbol, "GOLD") {
-		contractMult = 100000.0 // Standard Forex
-	}
-
-	var playbook TradePlaybook
-
-	if isBullish {
-		// === LONG PLAYBOOK ===
-		// Dynamic Stop Loss based on VAL and ATR buffer
-		slPrice := vp.VAL - (atr15M * 0.8)
-		if liq.AsiaLow > 0 && liq.AsiaLow < currentPrice {
-			slPrice = math.Min(slPrice, liq.AsiaLow-(atr15M*0.5))
-		}
-		if slPrice >= currentPrice {
-			slPrice = currentPrice - (atr15M * 1.5)
-		}
-
-		slDistance := currentPrice - slPrice
-		if slDistance <= 0 {
-			slDistance = atr15M * 1.5
-			slPrice = currentPrice - slDistance
-		}
-
-		// Target 1: POC or Value Mean Reversion
-		tp1Price := math.Max(vp.POC, currentPrice+(slDistance*1.5))
-		if tp1Price <= currentPrice {
-			tp1Price = currentPrice + (slDistance * 1.8)
-		}
-
-		// Target 2: PDH / Day High / Liquidity Pool
-		tp2Price := math.Max(liq.PDH, tp1Price+(slDistance*1.5))
-		if tp2Price <= tp1Price {
-			tp2Price = tp1Price + slDistance
-		}
-
-		rrRatio := (tp2Price - currentPrice) / slDistance
-		if rrRatio < 1.5 {
-			rrRatio = 2.0
-		}
-
-		lots := riskUSD / (slDistance * contractMult)
-		if lots < 0.01 {
-			lots = 0.01
-		}
-
-		winRate := float64(score) / 100.0
-		rewardUSD := riskUSD * rrRatio
-		evUSD := (winRate * rewardUSD) - ((1.0 - winRate) * riskUSD)
-
-		playbook = TradePlaybook{
-			PrimaryPlan:       "LONG PULLBACK / DISCOUNT ACCUMULATION",
-			OptimalEntryZone:  fmt.Sprintf("%.2f – %.2f", vp.VAL, currentPrice),
-			EntryPrice:        currentPrice,
-			InvalidationPrice: slPrice,
-			Target1Price:      tp1Price,
-			Target2Price:      tp2Price,
-			RiskRewardRatio:   rrRatio,
-			EstimatedWinRate:  math.Round(winRate*1000) / 10,
-			RecommendedLots:   math.Round(lots*100) / 100,
-			RiskAmountUSD:     riskUSD,
-			ExpectedValueUSD:  evUSD,
-			ThesisSummary:     fmt.Sprintf("Akumulasi Long di zona Discount (%s) setelah Liquidity Sweep, menargetkan POC & Day High dengan RRR 1:%.2f.", FormatDeskPrice(vp.VAL, precision), rrRatio),
-		}
-	} else {
-		// === SHORT PLAYBOOK ===
-		// Dynamic Stop Loss based on VAH and ATR buffer
-		slPrice := currentPrice + (atr15M * 1.5) // ATR fallback default
-		if vp.VAH > 0 {
-			slPrice = vp.VAH + (atr15M * 0.8)
-		}
-		if liq.AsiaHigh > 0 && liq.AsiaHigh > currentPrice {
-			slPrice = math.Max(slPrice, liq.AsiaHigh+(atr15M*0.5))
-		}
-		if slPrice <= currentPrice {
-			slPrice = currentPrice + (atr15M * 1.5)
-		}
-
-		slDistance := slPrice - currentPrice
-		if slDistance <= 0 {
-			slDistance = atr15M * 1.5
-			slPrice = currentPrice + slDistance
-		}
-
-		// Target 1: POC or Value Mean Reversion (downward)
-		tp1Price := currentPrice - (slDistance * 1.8) // ATR fallback default
-		if vp.POC > 0 && vp.POC < currentPrice {
-			tp1Price = math.Min(vp.POC, currentPrice-(slDistance*1.5))
-		}
-		if tp1Price >= currentPrice {
-			tp1Price = currentPrice - (slDistance * 1.8)
-		}
-
-		// Target 2: PDL / Day Low / Liquidity Pool
-		tp2Price := liq.PDL
-		if tp2Price <= 0 || tp2Price >= tp1Price {
-			tp2Price = tp1Price - slDistance
-		}
-		if tp2Price >= tp1Price {
-			tp2Price = tp1Price - (slDistance * 1.5)
-		}
-
-		rrRatio := (currentPrice - tp2Price) / slDistance
-		if rrRatio < 1.5 {
-			rrRatio = 2.0
-		}
-
-		lots := riskUSD / (slDistance * contractMult)
-		if lots < 0.01 {
-			lots = 0.01
-		}
-
-		// For SHORT, invert score for win rate (score 30 -> bearish conviction 70%)
-		bearishConviction := float64(100-score) / 100.0
-		rewardUSD := riskUSD * rrRatio
-		evUSD := (bearishConviction * rewardUSD) - ((1.0 - bearishConviction) * riskUSD)
-
-		playbook = TradePlaybook{
-			PrimaryPlan:       "SHORT BREAKDOWN / PREMIUM DISTRIBUTION",
-			OptimalEntryZone:  fmt.Sprintf("%.2f – %.2f", currentPrice, vp.VAH),
-			EntryPrice:        currentPrice,
-			InvalidationPrice: slPrice,
-			Target1Price:      tp1Price,
-			Target2Price:      tp2Price,
-			RiskRewardRatio:   rrRatio,
-			EstimatedWinRate:  math.Round(bearishConviction*1000) / 10,
-			RecommendedLots:   math.Round(lots*100) / 100,
-			RiskAmountUSD:     riskUSD,
-			ExpectedValueUSD:  evUSD,
-			ThesisSummary:     fmt.Sprintf("Short Distribution dari zona Premium (%s) setelah Liquidity Sweep, menargetkan POC & Day Low dengan RRR 1:%.2f.", FormatDeskPrice(vp.VAH, precision), rrRatio),
-		}
-	}
+	playbook := buildPlaybook(symbol, currentPrice, precision, score, vp, liq, smc, atr15M, balance, riskPerc, calib)
 
 	// Filter upcoming events for today
 	var upcoming []CalendarEvent
-	now := time.Now().UTC()
 	for _, ev := range events {
 		evTime := time.Unix(ev.Timestamp, 0).UTC()
 		if evTime.Year() == now.Year() && evTime.YearDay() == now.YearDay() {
@@ -1385,7 +1421,7 @@ func synthesizeDeskBriefing(
 
 	return &DeskBriefing{
 		Symbol:          symbol,
-		Timestamp:       time.Now().UTC(),
+		Timestamp:       now,
 		CurrentPrice:    currentPrice,
 		DayChange:       dayChg,
 		DayChangePerc:   dayChgPerc,
@@ -1400,6 +1436,7 @@ func synthesizeDeskBriefing(
 		SMC:             smc,
 		Levels:          levels,
 		Playbook:        playbook,
+		ScoreBreakdown:  breakdown,
 		UpcomingEvents:  upcoming,
 	}
 }
@@ -1991,10 +2028,16 @@ func NormalizeDeskSymbol(input string) string {
 	switch upper {
 	case "XAUUSD", "XAU", "GOLD", "EMAS":
 		return "OANDA:XAUUSD"
-	case "BTC", "BTCUSDT", "BITCOIN":
+	case "BTC", "BTCUSD", "BTCUSDT", "BITCOIN":
 		return "BINANCE:BTCUSDT"
-	case "ETH", "ETHUSDT", "ETHEREUM":
+	case "ETH", "ETHUSD", "ETHUSDT", "ETHEREUM":
 		return "BINANCE:ETHUSDT"
+	case "XAGUSD", "XAG", "SILVER":
+		return "OANDA:XAGUSD"
+	case "USOIL", "WTI", "OIL":
+		return "TVC:USOIL"
+	case "UKOIL", "BRENT":
+		return "TVC:UKOIL"
 	case "EURUSD", "EUR":
 		return "FX:EURUSD"
 	case "GBPUSD", "GBP":
@@ -2005,8 +2048,10 @@ func NormalizeDeskSymbol(input string) string {
 		return "TVC:DXY"
 	case "SPX", "SPX500", "US500", "S&P500", "SP500":
 		return "TVC:SPX"
-	case "NDX", "NAS100", "US100", "NASDAQ":
+	case "NDX", "NAS100", "US100", "USTEC", "NASDAQ":
 		return "TVC:NDX"
+	case "US30", "DJI", "DOW":
+		return "TVC:DJI"
 	default:
 		if len(upper) == 6 {
 			return "FX:" + upper
@@ -2017,7 +2062,10 @@ func NormalizeDeskSymbol(input string) string {
 
 func DeterminePrecisionForSymbol(symbol string) int {
 	s := strings.ToUpper(symbol)
-	if strings.Contains(s, "XAU") || strings.Contains(s, "GOLD") || strings.Contains(s, "BTC") || strings.Contains(s, "ETH") || strings.Contains(s, "SOL") || strings.Contains(s, "SPX") || strings.Contains(s, "NDX") {
+	if strings.Contains(s, "XAG") {
+		return 3
+	}
+	if strings.Contains(s, "XAU") || strings.Contains(s, "GOLD") || strings.Contains(s, "BTC") || strings.Contains(s, "ETH") || strings.Contains(s, "SOL") || strings.Contains(s, "SPX") || strings.Contains(s, "NDX") || strings.Contains(s, "DJI") || strings.Contains(s, "OIL") {
 		return 2
 	}
 	if strings.Contains(s, "JPY") {

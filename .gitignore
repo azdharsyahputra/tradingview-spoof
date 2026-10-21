@@ -27,3 +27,8 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated shadow backfill (regenerate with go run ./cmd/shadow backfill)
+shadow_backfill.json
+agentest_results.json
+/agentest

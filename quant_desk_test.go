@@ -84,7 +84,7 @@ func TestCalculateSessionLiquidity(t *testing.T) {
 		{Time: today0100, Open: 4375, High: 4378, Low: 4353, Close: 4360},
 	}
 
-	liq := calculateSessionLiquidity(bars15M, barsD, 4360)
+	liq := calculateSessionLiquidity(bars15M, barsD, 4360, time.Unix(today0400+3600, 0))
 	if liq.AsiaHigh != 4370 || liq.AsiaLow != 4353 {
 		t.Errorf("unexpected Asia range: High=%f, Low=%f", liq.AsiaHigh, liq.AsiaLow)
 	}
