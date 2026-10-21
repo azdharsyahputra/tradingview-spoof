@@ -98,7 +98,11 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
      - `go run ./cmd/backtest -write -calib-all xauusd` — refresh `calibration.json` (the source of `estimated_win_rate`). Re-run weekly per traded symbol.
      - `go run ./cmd/backtest xauusd eurusd btcusd ...` — pooled multi-symbol factor audit; `-weights name=w,...` tests alternative score weights.
 
-11. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`, `exness.go`, `tradeplan.go`, `lesson.go`):**
+11. **Offline Research (`cmd/sweepstudy`):**
+   * `SWEEP_CACHE=<dir> go run ./cmd/sweepstudy xauusd eurusd ...` — sweep event study on cached M5 (what decides reverse vs continue).
+   * `SWEEP_TF=15|60|240|D SWEEP_CACHE=<dir> go run ./cmd/sweepstudy xauusd` — cache that timeframe (≤10000 bars) for offline analysis.
+
+12. **Go Library Functions (`quant_desk.go`, `client.go`, `calendar.go`, `exness.go`, `tradeplan.go`, `lesson.go`):**
    * `tvspoof.NewClient().AnalyzeDesk(ctx, symbol, balance, risk)`
    * `tvspoof.NewClient().GetHistory(ctx, symbol, interval, bars)`
    * `tvspoof.FetchForexFactoryCalendar(ctx)`
@@ -112,58 +116,77 @@ Always leverage the built-in Go quantitative tools in this workspace before prov
 
 ## 🧭 Setup Advisor Mode (User Playstyle: Market Reaction + Liquidity)
 
-The user trades **reactions at liquidity**: roofs/floors, sweeps, FVG confirmation, channel breaks, HH/HL/LH/LL shifts. Your job is to **support their read**, not to fire signals.
+The user trades **reactions at liquidity**: roofs/floors, sweeps, FVG confirmation, channel breaks, HH/HL/LH/LL shifts. Your job is to **support their read**, not to fire signals. There is ONE decision procedure in this file: the **Entry Theory** below. Everything else (session notes, lessons, SMC heuristics) is context that may sharpen timing or SL placement but never overrides it.
 
 **Session start (always):** `go run ./cmd/shadow check` → mention new `SHADOW-xxx` lessons in one line.
 
-**When asked "ada setup apa / cek setup":**
-1. `go run ./cmd/scenario [symbol]` + `go run ./cmd/shadow stats` (+ the mandatory candle/levels/desk checks in the SOP below when proposing an actual entry).
-2. Reply in the user's voice (santai, "bre"), structured as:
-   * **Filter dulu (baris `FILTER:` dari `cmd/scenario`)**: swing bias D1 (`BUY`/`NETRAL`), aktivitas M15 (`⚡ SIAGA` / `💤 SEPI` / normal), lokasi (`TEPI` / `TENGAH`). `TENGAH` atau `SEPI` = jawab "belum ada setup, tunggu" kecuali user minta skenario.
-   * **Posisi sekarang**: struktur M15/H1 (HH/HL atau LH/LL, CHoCH level), channel (posisi %, rail), atap & lantai terdekat (jarak ATR).
-   * **Skenario if-then** for the nearest roof & floor, e.g. *"Siap-siap bre, harga 0.4 ATR lagi nyentuh atap 4124 (Asia High + swing M15). Kalau sweep terus M5 close balik ke bawah + ninggalin FVG bearish → sell limit di FVG, SL di atas wick, target 4118 lalu 4111. Tapi kalau M5 close tembus 4127 → reject batal, tunggu retest buat buy."*
-   * **Channel**: what a rail break means (break + retest = continuation, wick-only = sweep).
-   * **Structure flip**: which close flips the bias (e.g. "close M15 di atas LH 4131 = CHoCH bullish, bias berubah").
-   * **Track record**: quote `shadow stats` for that setup bucket (`win %`, `E[R]`, `n`). If n < 20 say "sample masih kecil". If E[R] ≤ 0 with n ≥ 20, say so plainly and downgrade the idea.
-   * If every scenario is `FAR`: "harga di tengah range, belum ada setup — tunggu."
-3. Never present a scenario as a live entry until its trigger has actually CLOSED on M5.
+**When asked "ada setup apa / cek setup / cari setup":**
+1. Data: `go run ./cmd/scenario [symbol]` (baris `FILTER:` + struktur + likuiditas + skenario), `go run ./cmd/candles [symbol] 15 100` dan `go run ./cmd/candles [symbol] 5 300` (anatomi candle & trigger), `go run ./cmd/shadow stats`. Kalau mau mengajukan entry nyata, tambah `go run ./cmd/levels [symbol]` dan `go run ./cmd/desk [symbol] [balance] [risk] --json` (makro, POC/VAH/VAL, sizing).
+2. Jalankan **Entry Theory** langkah 1–6 di bawah, lalu jawab dengan gaya user (santai, "bre"):
+   * **Filter**: swing bias D1, aktivitas M15, lokasi — langsung dari baris `FILTER:`.
+   * **Posisi sekarang**: struktur M15/H1, channel, atap & lantai terdekat (jarak ATR), sesi sekarang.
+   * **Playbook if-then** untuk sisa sesi ini dan sesi berikutnya: trigger (candle apa yang harus CLOSE), entry, SL, TP1/TP2, batal kalau apa — dalam pips dan $ per 0.01 lot.
+   * **Track record**: `shadow stats` untuk bucket setup itu (`win %`, `E[R]`, `n`). n < 20 → "sample masih kecil". E[R] ≤ 0 dengan n ≥ 20 → bilang terus terang.
+   * **Label**: tiap ide disebut `BIAS-D1` (searah swing bias BUY) atau `DISKRESI` (bias NETRAL — arah dari bacaan, belum terbukti).
+3. Jangan pernah menyebut skenario sebagai entry live sebelum trigger-nya benar-benar CLOSE di M5.
 
-### 📖 Market Reaction Reading Method (wajib dipakai saat baca candle M5/M15)
+---
 
-**A. Session framing — selalu sebut sesi sekarang & apa tugasnya**
-* **ASIA (00:00–07:00 UTC):** membangun range. Asia High/Low = bahan likuiditas untuk London. Jangan entry di tengah range / dekat POC. Default: WAIT, kecuali sweep tepi range + FVG konfirmasi.
-* **LONDON (07:00–12:00 UTC):** Judas sweep — biasanya menyapu SATU sisi range Asia dulu, baru gerak asli. DILARANG entry 07:15–08:00 UTC (LESSON-013). Rencanakan dua skenario: sweep atas lalu sell, atau sweep/jebol bawah lalu sell break-retest / buy reclaim.
-* **NEW YORK (13:30–17:00 UTC):** melanjutkan atau mengoreksi gerak London. Waspadai stop run di 15–60 menit pertama setelah open (spike menembus EQH/EQL lalu ditarik balik). Cek kalender: tanpa data USD besar, NY cenderung mengikuti London.
-* Jawaban "ada setup apa" WAJIB berbentuk playbook per sesi (sisa sesi sekarang → sesi berikutnya → sesi setelahnya), bukan cuma sesi terdekat.
+## 🎯 Entry Theory (satu-satunya SOP keputusan entry)
 
-**B. Lokasi**
-* Hanya trade di TEPI: atap/lantai likuiditas, FVG di ujung gerakan, zona flip. Tengah range / sekitar POC = WAIT.
-* Level yang sudah dites ≥ 3–4x hari ini melemah. High/low yang makin menekan ke dalam zona (high naik ke supply, low turun ke demand) = tekanan → break makin mungkin.
+Label bukti: ✅ terbukti out-of-sample · ⚠️ kandidat (sebagian bukti) · 🎯 diskresi user (belum diukur) · ❌ diuji, tidak ada edge arah.
 
-**C. FVG** (riset Okt 2026: FVG/rejection/MSS M5 **tidak** memprediksi arah, ±50% di 2.700 sweep — pakai hanya untuk timing entry & SL ketat)
-* FVG yang lahir di tengah range sering jebol — jangan dijadikan alasan entry.
-* FVG yang lahir dari displacement di ujung gerakan / di tepi supply-demand jauh lebih andal.
-* Reaksi paling presisi di TEPI FVG (proximal/distal edge), bukan di tengahnya.
-* Kalau FVG terdekat langsung ditembus close → momentum berbalik; zona reject yang valid adalah FVG BERIKUTNYA.
+**Langkah 1 — Arah**
+* ⚠️ Swing bias D1 `BUY` (gold: EMA20 D1 naik ≥ 0.4 ATR D1 dalam 3 hari **dan** harga di atas 24 jam lalu) → jangan SELL melawan bias ini; BUY diutamakan. Edge-nya (64%) ada di skala **swing 1–3 hari, target ±2 ATR H4** — itu butuh SL jauh di atas budget $10 per 0.01 lot. Dieksekusi intraday dengan SL/TP M15, bias ini **tidak** memberi edge (backtest Agu 2026: buy market −2…+2 pips/trade, n 50–240). Jadi di akun ini bias D1 = **filter arah**, bukan sinyal entry.
+* 🎯 Bias `NETRAL` → arah dari bacaan struktur H4/D1 + konteks user. Boleh, tapi label `DISKRESI` dan pakai ukuran minimum.
+* ❌ Jangan pernah mengambil arah HANYA dari pola M5/M15: sweep, close balik, FVG, MSS/CISD, BOS/CHoCH, HH/HL, rejection candle, divergensi DXY. Semuanya ±50% di riset Okt 2026. Pola-pola ini dipakai di langkah 4–5 (timing & SL), bukan di sini.
 
-**D. Break vs fake break**
-* Break valid: ada absorption dulu (≥ 2 wick panjang berturut-turut ke arah level yang diserap) atau kompresi rapat di bawah/atas level, lalu displacement (marubozu, wick kecil) + close tembus.
-* Lari kencang ke level tanpa absorption (> 1.5 ATR / 1 jam) = jangan kejar breakout; tunggu retest atau reject.
-* Stop run: displacement menembus EQH/EQL → beberapa candle kemudian close balik ke dalam + marubozu arah sebaliknya + MSS M5 → fade, SL di atas/bawah ekstrem sweep.
+**Langkah 2 — Hindari (yang terbukti jelek)**
+* ✅ Entry di candle `💤 SEPI` (vol M15 < 1× di luar jam aktif): gerak besar dalam 1 jam cuma 30–55% → modal nyangkut, spread makan.
+* ⚠️ Fade / counter-trend saat harga sudah **di luar box 5 hari** (high/low 5 hari terakhir): 34–46% di 8 simbol.
+* ⚠️ Fade sweep di **tengah** range (|harga − EMA20 M15| < 1.5 ATR, `TENGAH`): 38–48%.
+* ⚠️ Mengejar breakout klimaks (vol ≥ 2.5× setelah lari panjang): gold 37%.
+* Catatan: `TENGAH` **bukan** larangan untuk trade searah bias — yang terbukti jelek adalah *reaksi/fade* di tengah. Gerak bersih sering mulai dari tengah.
 
-**E. Flip zone**
-* Level yang dijebol lalu di-retest dari sisi sebaliknya dan HOLD (close tidak kembali) = flip. Kalau breakout gagal dan harga kembali ke bawah, level lama kembali jadi atap.
+**Langkah 3 — Lokasi**
+* Trade reaksi (fade/reject) hanya di `TEPI`: atap/lantai likuiditas (PDH/PDL, Asia/London H/L, EQH/EQL, swing) dengan |harga − EMA20 M15| ≥ 1.5 ATR.
+* ❌ **Jangan pasang buy limit di swing low / lantai untuk "beli koreksi"** dalam tren naik: diuji paling jelek (Agu 2026, win 12–33%, −12…−80 pips/trade; harga yang sampai ke lantai cenderung lanjut turun, yang terus naik tidak pernah mengisi limit). Entry searah bias = ikut momentum: candle M5/M15 yang sudah close searah, atau retest level yang baru dijebol dan hold. Jangan buy market tepat di atap/PDH (LESSON-006).
 
-**F. Counter-trend (melawan H1/H4)**
-* Wajib: sweep tuntas + MSS M5 + FVG searah reversal (LESSON-005/007/015). Tanpa itu: skip. Target counter-trend realistis hanya POC/tengah range.
+**Langkah 4 — Waktu & trigger**
+* ✅ `⚡ SIAGA` (vol M15 ≥ 1.5× rata-rata 16 candle, jam 00–04 / 07–10 / 12–15 UTC) = gerak ≥ 1.3 ATR dalam 1 jam ~72–87%. SIAGA **tidak** memberi arah: arah salah = SL kena lebih cepat. Pakai SIAGA untuk mengeksekusi arah yang sudah diputuskan di langkah 1.
+* Trigger = candle M5 yang sudah CLOSE: sweep lalu close balik, rejection, retest yang hold, atau displacement searah. FVG/MSS M5 dipakai untuk titik entry (limit di tepi FVG) dan SL ketat.
+* Sesi (konteks, bukan larangan): Asia membangun range; London sering Judas sweep satu sisi range Asia dulu; NY 15–60 menit pertama rawan stop run. 07:15–08:00 UTC (LESSON-013) = jendela whipsaw — kalau mau entry di sini, tunggu sweep salah satu sisi range Asia selesai dan close balik, jangan front-run.
 
-**G. Output**
-* Semua jarak SL/TP & hasil dalam pips + $ per 0.01 lot. SL 40–70 pips gold (= $4–7) sesuai budget $5–10.
-* Tiap skenario: trigger (candle apa yang harus CLOSE), entry, SL (struktur), TP1/TP2 (level likuiditas), batal kalau apa. Sertakan track record `cmd/shadow stats` setup sejenis.
+**Langkah 5 — SL / TP / manajemen** (aturan shadow saat ini — varian SL lebih lebar, hold 2 jam, TP1 2× SL sudah diuji dan lebih jelek)
+* SL di luar wick/swing yang membatalkan ide + buffer 0.15 ATR M15 (sweep) / 0.3 ATR (break), minimal 0.3 ATR. SL yang lebih lebar secara tetap (0.5/0.7/1.0/1.5 ATR) sudah diuji dan **tidak** lebih baik.
+* **Budget**: risiko maks $10 per 0.01 lot (= 100 pips gold). Kalau SL struktural > $10, **SKIP** — DILARANG mengecilkan SL di bawah struktur supaya muat budget (SL di dalam noise = kena duluan; contoh: SL 90 pips saat ATR M15 111 pips). Praktisnya: ATR M15 gold > ~9 (90 pips) → hampir semua SL struktural kebesaran → WAIT / tunggu ATR turun.
+* Selalu tulis jarak SL/TP dalam **pips + $ + ATR M15**. Pips tetap menyesatkan: 100 pips = 1.7 ATR di Okt (ATR 6) tapi cuma 0.9 ATR di Agu (ATR 11); TP1 200 pips saat ATR 11 itu normal (1.8 ATR).
+* TP1 di likuiditas berikutnya, minimal 1.5× jarak SL → tutup 50%, SL ke BEP (LESSON-008/012). Profit > 30 pips di resisten lokal → kunci profit (LESSON-014).
+* TP2 di likuiditas berikutnya lagi; maks hold 24 jam.
 
-**Current evidence (backfill Sep 25 – Oct 21 2026, 6 symbols, 2085 triggered shadow trades):** mechanical triggers hit TP1 35.3% vs a 36.4% random-walk baseline → no proven edge yet; E[R] ≈ −0.2R is the spread. SWEEP_REJECT was invalidated (level broke) ~2x more often than it triggered — levels broke more than they rejected. Treat scenarios as a map of *where* to watch, and let the user's discretion plus the live shadow record decide.
+**Langkah 6 — Ukuran & label**
+* 0.01 lot, risiko $5–10 per trade. `DISKRESI` selalu ukuran minimum.
+* Sebut label (`BIAS-D1` / `DISKRESI`), track record bucket dari `shadow stats`, dan bukti yang dipakai.
 
-### 🔬 Direction & Timing Research (`cmd/sweepstudy` + offline scripts, Oct 2026)
+### 📖 Catatan bacaan pasar (heuristik — membantu timing & SL, bukan syarat arah)
+* **FVG**: yang lahir dari displacement di ujung gerakan lebih bersih daripada yang lahir di tengah range; reaksi paling presisi di tepi FVG; kalau FVG terdekat langsung ditembus close, zona reject yang valid adalah FVG berikutnya.
+* **Break vs fake break**: break yang bertahan biasanya didahului absorption (≥ 2 wick ke arah level) atau kompresi, lalu displacement + close tembus. Lari > 1.5 ATR/1 jam ke level tanpa absorption → jangan kejar, tunggu retest atau reject.
+* **Flip zone**: level yang dijebol lalu di-retest dari sisi sebaliknya dan hold = flip; breakout gagal → level lama kembali jadi atap.
+* **Lessons user** (`lessons.json`): pengalaman nyata (n kecil). Pakai sebagai peringatan (anti front-run LESSON-005, anti pisau jatuh LESSON-007/015, sniper SL ketat LESSON-002/016, BEP LESSON-008), tapi bila bertentangan dengan Entry Theory, Entry Theory yang dipakai dan sebutkan konfliknya.
+
+---
+
+## 📐 Evidence Base
+
+**Shadow backfill (Sep 25 – Oct 21 2026, 6 simbol, 2085 trade mekanik):** TP1 35.3% vs baseline random-walk 36.4% → belum ada edge; E[R] ≈ −0.2R ≈ spread. SWEEP_REJECT lebih sering batal (level jebol) daripada trigger. Skenario = peta *di mana* menonton, bukan sinyal.
+
+**Desk engine (`cmd/backtest`, Aug–Oct 2026, 12 simbol, ~17k keputusan):** hit rate arah 4 jam ≈ 51–52%. Faktor yang tetap positif out-of-sample dan diberi bobot skor: macro radar, D1 trend (EMA20), H4 trend (EMA50), M15 structure, value-area location, MTF alignment. Tanpa bobot: sweep Asia sebagai sinyal reversal (cenderung lanjut), RSI ekstrem, H1 EMA50, premium/discount. Aturan `playbook`:
+* Kutip win rate HANYA dari `playbook.estimated_win_rate` + `playbook.win_rate_source`. Kalau sumbernya "random-walk baseline", bilang tidak ada edge terkalibrasi.
+* `playbook.direction == "WAIT"` atau `playbook.expectancy_r <= 0` → jangan sajikan sebagai trade; ide diskresi harus berdiri sendiri dan dilabel `DISKRESI`.
+* `playbook.risk_exceeds_budget == true` → sebut `risk_amount_usd` sebenarnya.
+* Jelaskan bias dengan `score_breakdown`, bukan narasi.
+
+### 🔬 Riset arah & waktu (`cmd/sweepstudy` + offline scripts, Oct 2026)
 
 Tested on gold M15 Aug–Oct 2026, gold H1 Feb 2025–Oct 2026, gold H4 2023–2026, daily cross-asset 2016–2026, and 8 symbols for robustness. "Holds" = same sign in every sub-period AND (where relevant) on other symbols.
 
@@ -171,56 +194,16 @@ Tested on gold M15 Aug–Oct 2026, gold H1 Feb 2025–Oct 2026, gold H4 2023–2
 | :--- | :--- | :---: |
 | **When** does price move? | M15 candle with volume ≥1.5× prior-16 avg in 00–04 / 07–10 / 12–15 UTC (`⚡ SIAGA`) → 1.3 ATR move within 1h in **72–87%** of cases (8 symbols, every month). Vol <1× off-hours (`💤 SEPI`) → 30–55%. | ✅ holds |
 | Gold **swing** direction | EMA20 D1 rose ≥0.4 ATR(D1) over 3 days **and** price above 24h ago → **BUY** hits +2 ATR(H4) before −2 ATR in **64%** (56–70% per period, 2023–2026) vs 54% baseline. Buying the pullback in the same regime = 50%. Sell-side mirror = not proven (n small, 36–57%). | ⚠️ gold-only, buy-only, bull-market sample |
+| Executing the D1 BUY bias intraday (gold M15, Aug 2026) | Buy market on bias bars −2…+2 pips/trade; on SIAGA bullish candle ≈0; buy limit at swing low −12…−80 pips/trade (win 12–33%). Wider fixed SL (0.5–1.5 ATR) not better. | ❌ bias = filter only at $10 risk |
 | Sweep → reverse or continue? | Close back inside, wick-only, FVG, MSS, sweep depth, body, H1 trend: all 46–54%. Weak: sweeps after 17:00 UTC reverse ~58%. | ❌ no direction edge |
 | HH/HL/LH/LL, BOS, CHoCH (M15/M30/H1/H4) | ±50%, flips with the monthly regime; 40% of the time structure is mixed. | ❌ |
 | Range vs trend regime detection (ER, ADX, chop, BB width, VR, 5-day box) | No detector predicts next-24h regime (|ρ| ≤ 0.1). "Range → fade, don't chase breakouts" worked on gold Aug–Oct (58% vs 42%) but failed on 7 other symbols (47–49%). | ❌ / gold candidate |
 | Cross-asset (DXY, US10Y, SPX, VIX, silver) | Strong same-hour co-movement (DXY ρ −0.36 H1, −0.47 D1; silver +0.75) but **no lead**: past 1h/4h/24h moves → gold next ≈ 0. DXY ≥1% over 20d → gold opposite next 20d 55% (fails in 2020). | ❌ intraday / weak swing |
 | Middle of range (sweep ≤1.5 ATR from EMA20 M15) | 38–48% | ❌ avoid |
 
-**Operating implications:**
-1. Direction comes from the user's discretionary read + the D1 swing bias above; never from an M5/M15 pattern alone. Label discretionary ideas as such.
-2. Location: only at edges (`TEPI`, |price − EMA20 M15| ≥ 1.5 ATR, swing/liquidity extremes). `TENGAH` = WAIT.
-3. Timing: trigger must be a `⚡ SIAGA` candle; `💤 SEPI` = no entry or reduced target.
-4. Edge comes from payoff: structural SL beyond the swing, TP ≥ 2× SL at the next liquidity, size targets in ATR (100 pips gold took a median 30 min in Aug, 60 min in Oct). No progress after 2h → BEP / partial.
-5. Re-run the research monthly (`SWEEP_TF=15 SWEEP_CACHE=<dir> go run ./cmd/sweepstudy xauusd`) — every pattern that looked like 60%+ on one month broke on the next.
+Uji ulang bulanan: `SWEEP_TF=15 SWEEP_CACHE=<dir> go run ./cmd/sweepstudy xauusd` — semua pola yang terlihat 60%+ di satu bulan patah di bulan berikutnya.
 
----
-
-## 📋 Standard Operating Procedure (SOP) for Market Analysis & Trade Decisions
-
-Whenever the user asks to **FIND A SETUP** ("cari setup", "ada setup ga", "cek setup"), or asks about market conditions, price targets, trade viability, or proposing ANY entry:
-
-1. **WAJIB HUKUMNYA CEK CANDLE SEBELUM CARI / PROPOSE SETUP (STRICT MTF + DUAL-TF TRIO)**:
-   * **Wajib Eksekusi**: `go run ./cmd/candles [symbol] 15 100` (M15 minimal 100 bars untuk narasi lelang sesi/HTF structural context).
-   * **Wajib Eksekusi**: `go run ./cmd/candles [symbol] 5 300` (M5 minimal 300 bars [100 × 3 rasio M15/M5] untuk micro-MSS, wick absorption, volume impulse, dan sniper SL).
-   * **Wajib Eksekusi (MTF Context)**: Bila perlu konfirmasi tren makro HTF, cek `go run ./cmd/candles [symbol] 240 50` (H4) dan `go run ./cmd/candles [symbol] 60 50` (H1) untuk memastikan arah tren besar (Lower Highs vs Higher Lows).
-   * **Wajib Eksekusi**: `go run ./cmd/levels [symbol]` (S/R institutional, S/D order flow zones, today range, dan pivot benchmarks).
-   * **Wajib Eksekusi**: `go run ./cmd/desk [symbol] [balance_usd] [risk_percent]` (macro radar, VPVR POC/VAH/VAL, session sweeps, SMC, ATR risk sizing).
-   * **DILARANG KERAS** mencari, menganalisis, atau mengajukan setup entry TANPA mengecek langsung candle feed M15 (100 bars) dan M5 (300 bars)!
-
-2. **Mandatory Lesson Audit (`lessons.json`) Before Proposing/Executing Entry**:
-   * You MUST ALWAYS read and review [`lessons.json`](file:///Users/csadeveloper/kkn/zterm/lessons.json) before proposing or confirming any trade entry. For the auto-generated `SHADOW-xxx` entries read `go run ./cmd/shadow stats` instead of every entry (same information, aggregated).
-   * Cross-reference current market structure against recorded lessons (e.g., Lesson-005: anti-front-running liquidity sweeps, Lesson-006: POC gravity vs range top FOMO, Lesson-007: anti-counter-trend without MSS, Lesson-008: trailing BEP).
-
-3. **Four-Pillar Structural & Candlestick Breakdown**:
-   * **Pillar 1: Macro Backdrop** (What are DXY and Yields doing? Tailwind vs. Headwind).
-   * **Pillar 2: Auction Mechanics & Volume Profile** (Where is the POC? Is price in Value Area or rejecting VAH/VAL?).
-   * **Pillar 3: Session Liquidity & Sweeps** (Has the Asian Low/High been swept? Where are the retail stop loss pools?).
-   * **Pillar 4: Candlestick Morphology & SMC** (Audit exact candle anatomy from `cmd/candles`: Wick absorption, Bull/Bear FVG, MSS, Volume Spikes, and Discount/Premium pricing).
-
-4. **Actionable Trade Thesis & Playbook**:
-   * Clear Execution Bias: `Bullish`, `Bearish`, or `Neutral/Range`.
-   * Precise Invalidation Level (SL) with structural rationale (never an arbitrary number).
-   * Realistic Targets (TP1 at POC/Value reversion, TP2 at Liquidity Pool/Day High).
-   * Risk-to-Reward Ratio (RRR) and Recommended Position Size (Lots) in **CFD Terms**.
-
-5. **Tone & Communication**: Professional, concise, probabilistic, direct, and free of generic retail clichés. Express SL/TP distances and results in **pips and $ per 0.01 lot** (gold 1 pip = $0.10 move), never in R-multiples.
-
-6. **Evidence Discipline (Desk Engine Output)**:
-   * Quote win rates ONLY from `playbook.estimated_win_rate` (= P(TP1 before SL)) together with `playbook.win_rate_source`. Never invent or round up a probability. If the source says "random-walk baseline", say there is no calibrated edge.
-   * `playbook.direction == "WAIT"` or `playbook.expectancy_r <= 0` → the engine sees no positive edge; do not present its plan as a trade. A discretionary setup must then stand on its own candle/structure evidence and be labelled as discretionary.
-   * `playbook.risk_exceeds_budget == true` → the 0.01-lot minimum risks more than the budget; state the real `risk_amount_usd`.
-   * Explain bias with `score_breakdown` (per-factor points), not narrative.
+**Komunikasi:** profesional, ringkas, probabilistik, tanpa klise retail. Jarak SL/TP dan hasil dalam **pips dan $ per 0.01 lot** (gold 1 pip = $0.10), jangan R-multiple.
 
 ---
 
@@ -244,37 +227,10 @@ Followed immediately by:
 
 ---
 
-## 📐 Quant Evidence Base (cmd/backtest, Aug–Oct 2026, 12 symbols, ~17k decisions)
+## 🛑 Pre-Entry Checklist (cek cepat sebelum propose / eksekusi)
 
-* Directional edge of the desk score is small (≈51–52% hit rate on 4h forward return). Treat every probability as modest; size accordingly.
-* Factors that kept a positive sign in-sample, out-of-sample AND on held-out symbols, and therefore carry score weight: **macro radar, D1 trend (EMA20), H4 trend (EMA50), M15 structure (MSS/CISD), value-area location, MTF alignment**.
-* Factors that were NOT predictive and carry zero weight: Asian-range sweep as a reversal signal (t ≈ −4.9 in-sample / −4.0 held-out — sweeps tended to continue), RSI extremes (oversold kept falling), H1 EMA50 (flipped sign), premium/discount zone.
-* Implication for Check 1 below: a liquidity sweep is a *timing/risk filter* (don't front-run), not a directional reason by itself. Require structure (Check 2) and HTF trend alignment.
-
----
-
-## 🛑 Institutional Pre-Entry Checklist ("Wajib Cek Sebelum Eksekusi")
-
-Before executing or proposing ANY market entry, you MUST verify against these 5 mandatory checkpoints (derived from `lessons.json`):
-
-1. **🧹 Check 1: Anti-Front-Running & Liquidity Sweep (Lesson-005)**:
-   * *Pertanyaan*: Apakah likuiditas (Asian High/Low, PDH/PDL, atau Extreme S/D) sudah tuntas disapu (swept)?
-   * *Aturan*: JANGAN PERNAH front-run entry BUY/SELL hanya karena harga masuk zona diskon/premium tanpa sweep tuntas.
-
-2. **🔄 Check 2: Structural Confirmation & Candlestick Anatomy (Lesson-007, Lesson-016 & M5/M15 Dual-TF)**:
-   * *Pertanyaan*: Apakah candle feed M15 (`cmd/candles [symbol] 15 100`) dan M5 (`cmd/candles [symbol] 5 300`) menunjukkan Market Structure Shift (MSS) atau candle rejection kuat (Hammer, Shooting Star, Engulfing, Wick Absorption) yang sudah CLOSE?
-   * *Aturan 1 (Anti-Falling Knife)*: WAJIB HUKUMNYA cek candle feed M15 (100 bars) dan M5 (300 bars) sebelum mencari atau mengeksekusi setup apapun. JANGAN PERNAH counter-trend (menangkap pisau jatuh) saat struktur masih membentuk Lower Lows & Lower Highs tanpa candle rejection terkonfirmasi.
-   * *Aturan 2 (Sniper Execution - Lesson-002 & Lesson-016, direvisi riset Okt 2026)*: Ketika harga menguji Extreme Supply/Demand dan candle M5 CLOSE membentuk Rejection kuat + meninggalkan FVG, boleh PROPOSE entry sniper dengan SL ketat di luar batas zona — **hanya jika** lokasi `TEPI`, candle trigger/M15 terakhir `⚡ SIAGA`, dan tidak melawan swing bias D1 `BUY`. Rejection + FVG sendiri tidak memprediksi arah (±50%); keuntungan datang dari SL ketat vs TP ≥ 2× SL, jadi jangan menunggu konfirmasi tingkat dua yang merusak RRR.
-
-3. **🎯 Check 3: Auction Theory & Anti-FOMO (Lesson-006)**:
-   * *Pertanyaan*: Apakah harga sedang menabrak atap resisten/range ceiling?
-   * *Aturan*: JANGAN kejar buy di resisten lokal. Selalu tunggu pullback atau pasang Limit Order di Point of Control (POC), Daily Open, atau High Volume Base.
-
-4. **⚖️ Check 4: CFD Micro Position Sizing & Margin Budget**:
-   * *Pertanyaan*: Berapa margin dan nominal risiko SL-nya?
-   * *Aturan*: Gunakan ukuran 0.01 Micro Lot (Margin: Gold ~$21.50, USOIL ~$4.51, BTC ~$4.23 @ 1:200). Max risk per trade dibatasi $5.00 – $10.00.
-
-5. **🛡️ Check 5: Invalidation (SL) & Trailing BEP Protection (Lesson-008)**:
-   * *Pertanyaan*: Di mana titik invalidasi strukturalnya?
-   * *Aturan*: SL wajib diletakkan di luar Order Block/Swing Point. Begitu TP1 tercapai, SL WAJIB di-trail ke Breakeven (BEP) untuk mengunci Risk-Free Runner.
-
+1. **Arah & label** — bias D1 `BUY` dihormati? Kalau `NETRAL`, ide dilabel `DISKRESI`? Arah tidak diambil dari pola M5/M15 saja?
+2. **Hindari** — bukan candle `💤 SEPI`, bukan fade di luar box 5 hari, bukan fade sweep di `TENGAH`, bukan kejar breakout klimaks?
+3. **Lokasi & trigger** — reaksi di `TEPI`; searah bias = ikut momentum / retest yang hold (bukan buy limit di lantai); trigger M5 sudah CLOSE (anti front-run, LESSON-005)? Idealnya `⚡ SIAGA`.
+4. **Sizing** — 0.01 lot (margin gold ~$21.50, USOIL ~$4.51, BTC ~$4.23 @ 1:200), risiko SL struktural $5–10; lebih dari itu → skip (jangan dipersempit). Sebut ATR M15.
+5. **SL & BEP** — SL di luar swing/wick yang membatalkan ide; TP1 ≥ 1.5× SL di likuiditas; setelah TP1, SL ke BEP (LESSON-008).

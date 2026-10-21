@@ -91,10 +91,11 @@ type ShadowRules struct {
 	TP1MinR         float64 // TP1 at least this multiple of the stop distance
 	TP2AddR         float64 // TP2 = TP1 + this multiple (when no level target)
 	UseLevelTargets bool    // use liquidity-level targets when they fit
+	MaxHoldBars     int     // M5 bars after the trigger before a market time-out
 }
 
 // ShadowParams is the active rule set.
-var ShadowParams = ShadowRules{SweepSLBufATR: 0.15, BreakSLBufATR: 0.3, MinRiskATR: 0.3, TP1MinR: 1.5, TP2AddR: 1.5, UseLevelTargets: true}
+var ShadowParams = ShadowRules{SweepSLBufATR: 0.15, BreakSLBufATR: 0.3, MinRiskATR: 0.3, TP1MinR: 1.5, TP2AddR: 1.5, UseLevelTargets: true, MaxHoldBars: 288}
 
 // Open reports whether the trade still needs evaluation.
 func (t ShadowTrade) Open() bool { return t.Status == ShadowPending || t.Status == ShadowActive }
@@ -326,7 +327,7 @@ func EvaluateShadow(t *ShadowTrade, m5 []Bar, now time.Time, spread float64) {
 	k := sort.Search(len(bars), func(i int) bool { return bars[i].Time > t.TriggerAt })
 	bt := BacktestTrade{Entry: t.Entry, SL: t.SL, TP1: t.TP1, TP2: t.TP2}
 	future := bars[k:]
-	const maxHold = 288 // 24h of M5
+	maxHold := ShadowParams.MaxHoldBars
 	simulateManagedTrade(&bt, t.Side == "BUY", future, maxHold, spread)
 	t.TP1Hit, t.RunnerHit, t.R = bt.TP1Hit, bt.RunnerHit, bt.R
 	t.setPips()
@@ -357,7 +358,7 @@ func exitReason(bt BacktestTrade) string {
 	case bt.StoppedOut:
 		return "SL kena sebelum TP1"
 	}
-	return "time-out 24 jam, ditutup di harga pasar"
+	return fmt.Sprintf("time-out %s, ditutup di harga pasar", time.Duration(ShadowParams.MaxHoldBars)*5*time.Minute)
 }
 
 // setPips fills the pip / USD view of the trade from R and the levels.
