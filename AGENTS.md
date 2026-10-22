@@ -123,7 +123,7 @@ The user trades **reactions at liquidity**: roofs/floors, sweeps, FVG confirmati
 **When asked "ada setup apa / cek setup / cari setup":**
 1. Data: `go run ./cmd/scenario [symbol]` (baris `FILTER:` + struktur + likuiditas + skenario), `go run ./cmd/candles [symbol] 15 100` dan `go run ./cmd/candles [symbol] 5 300` (anatomi candle & trigger), `go run ./cmd/shadow stats`. Kalau mau mengajukan entry nyata, tambah `go run ./cmd/levels [symbol]` dan `go run ./cmd/desk [symbol] [balance] [risk] --json` (makro, POC/VAH/VAL, sizing).
 2. Jalankan **Entry Theory** langkah 1–6 di bawah, lalu jawab dengan gaya user (santai, "bre"):
-   * **Filter**: swing bias D1, aktivitas M15, lokasi — langsung dari baris `FILTER:`.
+   * **Filter**: swing bias D1, aktivitas M15, lokasi, box 5 hari (`di dalam` / `DI ATAS` / `DI BAWAH`) — langsung dari baris `FILTER:`. Box menentukan boleh-tidaknya fade (Langkah 2); jangan menebak, baca barisnya. Jarak D1 di baris CONTEXT dalam ATR D1.
    * **Posisi sekarang**: struktur M15/H1, channel, atap & lantai terdekat (jarak ATR), sesi sekarang.
    * **Playbook if-then** untuk sisa sesi ini dan sesi berikutnya: trigger (candle apa yang harus CLOSE), entry, SL, TP1/TP2, batal kalau apa — dalam pips dan $ per 0.01 lot.
    * **Track record**: `shadow stats` untuk bucket setup itu (`win %`, `E[R]`, `n`). n < 20 → "sample masih kecil". E[R] ≤ 0 dengan n ≥ 20 → bilang terus terang.

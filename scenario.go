@@ -69,8 +69,8 @@ type MarketContext struct {
 	ADR         float64 `json:"adr"`          // 14-day average daily range
 	TodayRange  float64 `json:"today_range"`
 	ADRUsedPct  float64 `json:"adr_used_pct"`
-	D1Trend     string  `json:"d1_trend"` // close vs EMA20 D1
-	D1DistATR   float64 `json:"d1_dist_atr"`
+	D1Trend     string  `json:"d1_trend"`      // close vs EMA20 D1
+	D1DistATR   float64 `json:"d1_dist_atr"`   // (price - EMA20 D1) / ATR14 D1
 	H4Trend     string  `json:"h4_trend"`      // close vs EMA50 H4
 	Killzone    string  `json:"killzone"`      // e.g. "London open 25m lagi"
 	Range30mATR float64 `json:"range_30m_atr"` // high-low of last 6 M5 / ATR (small = compression)
@@ -87,6 +87,9 @@ type MarketContext struct {
 	D1SlopeATR   float64 `json:"d1_ema20_slope_atr"` // EMA20 D1 change over 3 days / ATR14 D1
 	Mom24h       float64 `json:"mom_24h"`            // price - H4 close ~24h ago
 	SwingBias    string  `json:"swing_bias"`         // "BUY" when slope >= 0.4 and Mom24h > 0, else "NETRAL"
+	Box5High     float64 `json:"box5_high"`          // high of the last 5 closed daily candles
+	Box5Low      float64 `json:"box5_low"`
+	Box5State    string  `json:"box5_state"` // "INSIDE", "ABOVE" or "BELOW": outside = do not fade
 }
 
 // FVGZone is an unfilled fair value gap.
@@ -889,7 +892,9 @@ func marketContext(sym string, c5, c15, c4h, cD, dxy []Bar, todayRange, price, a
 	}
 	if ema := calculateEMA(cD, 20); ema > 0 {
 		mc.D1Trend = trendWord(price - ema)
-		mc.D1DistATR = round2((price - ema) / atr)
+		if a := calculateATR(cD, 14); a > 0 {
+			mc.D1DistATR = round2((price - ema) / a)
+		}
 	}
 	if ema := calculateEMA(c4h, 50); ema > 0 {
 		mc.H4Trend = trendWord(price - ema)
@@ -937,6 +942,20 @@ func evidenceFilters(mc *MarketContext, c15, c4h, cD []Bar, price, atr float64) 
 	}
 	if n := len(c4h); n >= 6 {
 		mc.Mom24h = round2(price - c4h[n-6].Close)
+	}
+	if n := len(cD); n >= 5 {
+		mc.Box5High, mc.Box5Low = cD[n-5].High, cD[n-5].Low
+		for _, b := range cD[n-5:] {
+			mc.Box5High, mc.Box5Low = math.Max(mc.Box5High, b.High), math.Min(mc.Box5Low, b.Low)
+		}
+		switch {
+		case price > mc.Box5High:
+			mc.Box5State = "ABOVE"
+		case price < mc.Box5Low:
+			mc.Box5State = "BELOW"
+		default:
+			mc.Box5State = "INSIDE"
+		}
 	}
 	mc.SwingBias = "NETRAL"
 	if n := len(cD); n >= 24 {

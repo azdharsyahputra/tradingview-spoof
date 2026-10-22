@@ -268,7 +268,7 @@ Kamu dinilai dari hasil pips di candle berikutnya. WAIT dinilai benar kalau sken
 		x := r.Context
 		fmt.Fprintf(&b, "KONTEKS: gerak 1 jam %+.1f ATR, 4 jam %+.1f ATR | streak M5 %+d candle | body 3 candle terakhir vs sebelumnya %.2fx | volume candle terakhir %.1fx rata-rata\n",
 			x.Move1hATR, x.Move4hATR, x.StreakM5, x.BodyRatio, x.RelVolLast)
-		fmt.Fprintf(&b, "         ADR %s, range hari ini %s (%.0f%% ADR terpakai) | D1 %s (%+.1f ATR dari EMA20) | H4 %s (EMA50) | %s\n",
+		fmt.Fprintf(&b, "         ADR %s, range hari ini %s (%.0f%% ADR terpakai) | D1 %s (%+.1f ATR D1 dari EMA20) | H4 %s (EMA50) | %s\n",
 			f(x.ADR), f(x.TodayRange), x.ADRUsedPct, x.D1Trend, x.D1DistATR, x.H4Trend, x.Killzone)
 		if x.DXYNote != "" {
 			fmt.Fprintf(&b, "         %s\n", x.DXYNote)

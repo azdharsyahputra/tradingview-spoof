@@ -91,12 +91,15 @@ func printText(r *tvspoof.ScenarioReport, logged []tvspoof.ShadowTrade) {
 	}
 	x := r.Context
 	fmt.Printf("CONTEXT: move 1h %+.1f ATR / 4h %+.1f ATR | streak M5 %+d | body ratio %.2f | rel vol %.1fx\n", x.Move1hATR, x.Move4hATR, x.StreakM5, x.BodyRatio, x.RelVolLast)
-	fmt.Printf("         ADR %s, today %s (%.0f%% used) | D1 %s (%+.1f ATR vs EMA20) | H4 %s (EMA50) | %s\n", f(x.ADR), f(x.TodayRange), x.ADRUsedPct, x.D1Trend, x.D1DistATR, x.H4Trend, x.Killzone)
+	fmt.Printf("         ADR %s, today %s (%.0f%% used) | D1 %s (%+.1f ATR D1 vs EMA20) | H4 %s (EMA50) | %s\n", f(x.ADR), f(x.TodayRange), x.ADRUsedPct, x.D1Trend, x.D1DistATR, x.H4Trend, x.Killzone)
 	if x.DXYNote != "" {
 		fmt.Println("         " + x.DXYNote)
 	}
 	fmt.Printf("FILTER:  %s (vol M15 %.1fx) | lokasi %s (%+.1f ATR vs EMA20 M15) | swing bias %s (EMA20 D1 %+.2f ATR/3d, mom 24h %+.1f)\n",
 		activityWord(x.Activity), x.RelVolM15, locationWord(x.EMA15DistATR), x.EMA15DistATR, x.SwingBias, x.D1SlopeATR, x.Mom24h)
+	if x.Box5State != "" {
+		fmt.Printf("         box 5 hari %s–%s → %s\n", f(x.Box5Low), f(x.Box5High), boxWord(x.Box5State))
+	}
 
 	fmt.Println("\nLIQUIDITY ABOVE (buy-side / atap):")
 	for _, l := range r.Above {
@@ -171,4 +174,14 @@ func locationWord(d float64) string {
 		return "TEPI"
 	}
 	return "TENGAH (WAIT)"
+}
+
+func boxWord(s string) string {
+	switch s {
+	case "ABOVE":
+		return "DI ATAS box (jangan fade/sell counter)"
+	case "BELOW":
+		return "DI BAWAH box (jangan fade/buy counter)"
+	}
+	return "di dalam box (fade di tepi boleh)"
 }
